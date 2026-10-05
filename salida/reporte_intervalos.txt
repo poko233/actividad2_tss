@@ -1,0 +1,19 @@
+======================================================================
+REPORTE INTERVALOS DE CONFIANZA 95%
+Fecha: 2026-10-04 | N_titulados=60 N_empleadores=20
+======================================================================
+
+--- IC para MEDIAS (t Student: x̄ ± t·s/√n) ---
+edad                     n=60 media=34.23 IC95=[32.52 , 35.95]
+anios_vida_profesional   n=60 media=7.47 IC95=[6.20 , 8.73]
+anios_desempleado        n=60 media=1.38 IC95=[1.10 , 1.67]
+opinion_posgrado_fcyt    n=60 media=2.83 IC95=[2.63 , 3.03]
+satisfaccion_formacion   n=60 media=3.08 IC95=[2.88 , 3.29]
+concordancia_formacion_requerimientos n=60 media=2.63 IC95=[2.40 , 2.87]
+
+--- IC para PROPORCIONES (Z: p̂ ± 1.96·√(p̂(1-p̂)/n)) ---
+tasa_insercion (trabaja o emprende)        p̂= 91.7% IC95=[ 84.7% ,  98.7%] n=60
+intencion_posgrado (SI)                    p̂= 70.0% IC95=[ 58.4% ,  81.6%] n=60
+requiere_beca (BECA_TOTAL/PARCIAL)         p̂= 31.7% IC95=[ 19.9% ,  43.4%] n=60
+
+Nota HU1: el tiempo_primer_empleo es categorico; su IC se reporta como proporcion por categoria en univariado.

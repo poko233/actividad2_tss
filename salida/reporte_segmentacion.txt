@@ -1,0 +1,10 @@
+======================================================================
+REPORTE SEGMENTACION (antiguedad)
+Fecha: 2026-10-04 | N_titulados=60 N_empleadores=20
+======================================================================
+SEGMENTO                n   sat_formac   int_posg_%   tasa_desemp.
+JUNIOR_0_3             20         2.95         70.0           0.67
+INTERMEDIO_4_7         11         3.27         63.6           0.28
+CONSOLIDADO_8_MAS      29         3.10         72.4           0.14
+
+IC95 diferencia satisfaccion (Junior-Consolidado): dif=-0.15 IC=[-0.62 , 0.31] n1=20 n2=29 => sin diferencia significativa (el 0 esta dentro)

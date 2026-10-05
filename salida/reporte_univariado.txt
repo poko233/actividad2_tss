@@ -1,0 +1,175 @@
+======================================================================
+REPORTE UNIVARIADO
+Fecha: 2026-10-04 | N_titulados=60 N_empleadores=20
+======================================================================
+
+--- VARIABLES NUMERICAS (titulados) ---
+
+[edad] n=60
+  media=34.23 mediana=34.00 desv=6.77 min=23.00 Q1=28.00 Q2=34.00 Q3=41.00 max=45.00
+  Histograma (10 intervalos):
+  [  23.0 -   25.2)    7 ###################################
+  [  25.2 -   27.4)    7 ###################################
+  [  27.4 -   29.6)    5 #########################
+  [  29.6 -   31.8)    5 #########################
+  [  31.8 -   34.0)    5 #########################
+  [  34.0 -   36.2)    8 ########################################
+  [  36.2 -   38.4)    2 ##########
+  [  38.4 -   40.6)    5 #########################
+  [  40.6 -   42.8)    8 ########################################
+  [  42.8 -   45.0)    8 ########################################
+
+[anios_vida_profesional] n=60
+  media=7.47 mediana=7.00 desv=5.01 min=0.00 Q1=3.00 Q2=7.00 Q3=12.00 max=15.00
+  Histograma (10 intervalos):
+  [   0.0 -    1.5)    8 #############################
+  [   1.5 -    3.0)    6 ######################
+  [   3.0 -    4.5)    6 ######################
+  [   4.5 -    6.0)    2 #######
+  [   6.0 -    7.5)    9 #################################
+  [   7.5 -    9.0)    4 ###############
+  [   9.0 -   10.5)    4 ###############
+  [  10.5 -   12.0)    4 ###############
+  [  12.0 -   13.5)    6 ######################
+  [  13.5 -   15.0)   11 ########################################
+
+[anios_desempleado] n=60
+  media=1.38 mediana=1.50 desv=1.14 min=0.00 Q1=0.00 Q2=1.50 Q3=2.00 max=3.00
+  Histograma (10 intervalos):
+  [   0.0 -    0.3)   19 ########################################
+  [   0.3 -    0.6)    0 
+  [   0.6 -    0.9)    0 
+  [   0.9 -    1.2)   11 #######################
+  [   1.2 -    1.5)    0 
+  [   1.5 -    1.8)    0 
+  [   1.8 -    2.1)   18 ######################################
+  [   2.1 -    2.4)    0 
+  [   2.4 -    2.7)    0 
+  [   2.7 -    3.0)   12 #########################
+
+--- VARIABLES LIKERT (titulados, escala 1-4; negocio 1-3/1-4) ---
+
+[opinion_posgrado_fcyt] n=60 media=2.83 mediana=3.00 desv=0.78 IC95%=[2.63,3.03]
+
+[satisfaccion_formacion] n=60 media=3.08 mediana=3.00 desv=0.81 IC95%=[2.88,3.29]
+
+[concordancia_formacion_requerimientos] n=60 media=2.63 mediana=3.00 desv=0.92 IC95%=[2.40,2.87]
+
+[satisfaccion_negocio] n=7 media=2.14 mediana=3.00 desv=1.07 IC95%=[1.15,3.13]
+
+[importancia_formacion_negocio] n=7 media=2.29 mediana=2.00 desv=1.11 IC95%=[1.26,3.31]
+
+--- VARIABLES CATEGORICAS (titulados) ---
+
+[genero] moda=MASCULINO
+  MASCULINO                      33  55.0% #################.............
+  FEMENINO                       27  45.0% ##############................
+
+[realizo_formacion_complementaria] moda=SI
+  SI                             37  61.7% ###################...........
+  NO                             23  38.3% ############..................
+
+[nivel_posgrado] moda=(VACIO)
+  (VACIO)                        23  38.3% ############..................
+  MAESTRIA                       15  25.0% ########......................
+  ESPECIALIDAD                   13  21.7% #######.......................
+  DIPLOMADO                       5   8.3% ###...........................
+  DOCTORADO                       4   6.7% ##............................
+
+[institucion_formacion] moda=(VACIO)
+  (VACIO)                        23  38.3% ############..................
+  UNIV_PRIVADAS_NAC              10  16.7% #####.........................
+  UNIV_INTERNACIONALES            8  13.3% ####..........................
+  EUPG                            7  11.7% ###...........................
+  DIR_POSGRADO_FCyT               6  10.0% ###...........................
+  UNIV_PUBLICAS_NAC               5   8.3% ###...........................
+  IBNORCA                         1   1.7% #.............................
+
+[financiamiento_formacion] moda=RECURSOS_PROPIOS
+  RECURSOS_PROPIOS               41  68.3% ####################..........
+  BECA_TOTAL                     11  18.3% ######........................
+  BECA_PARCIAL                    8  13.3% ####..........................
+
+[interes_posgrado] moda=SI
+  SI                             42  70.0% #####################.........
+  NO                             18  30.0% #########.....................
+
+[area_interes_posgrado] moda=(VACIO)
+  (VACIO)                        18  30.0% #########.....................
+  IA                             14  23.3% #######.......................
+  ING_SOFTWARE                   10  16.7% #####.........................
+  REDES_SEGURIDAD                 9  15.0% #####.........................
+  BASE_DATOS                      5   8.3% ###...........................
+  ROBOTICA                        4   6.7% ##............................
+
+[institucion_futura_posgrado] moda=(VACIO)
+  (VACIO)                        18  30.0% #########.....................
+  IBNORCA                         9  15.0% #####.........................
+  EUPG                            9  15.0% #####.........................
+  UNIV_PRIVADAS_NAC               8  13.3% ####..........................
+  DIR_POSGRADO_FCyT               6  10.0% ###...........................
+  UNIV_INTERNACIONALES            6  10.0% ###...........................
+  UNIV_PUBLICAS_NAC               4   6.7% ##............................
+
+[situacion_laboral_actual] moda=TRABAJA_ORG
+  TRABAJA_ORG                    48  80.0% ########################......
+  EMPRENDIMIENTO                  7  11.7% ###...........................
+  NO_TRABAJA                      5   8.3% ###...........................
+
+[tiempo_primer_empleo] moda=YA_TRABAJABA
+  YA_TRABAJABA                   16  26.7% ########......................
+  4_8_MESES                      12  20.0% ######........................
+  MENOS_1_MES                    10  16.7% #####.........................
+  1_4_MESES                      10  16.7% #####.........................
+  8_12_MESES                      9  15.0% #####.........................
+  MAS_12_MESES                    3   5.0% ##............................
+
+[num_empleos_desde_titulacion] moda=MAS_DE_3
+  MAS_DE_3                       18  30.0% #########.....................
+  3                              16  26.7% ########......................
+  2                              15  25.0% ########......................
+  1                              11  18.3% ######........................
+
+[red_contactos] moda=SI
+  SI                             33  55.0% #################.............
+  NO                             27  45.0% ##############................
+
+--- PREGUNTAS MULTIPLES (conteo por opcion, separador |) ---
+
+[aspectos_utiles] respondieron=60
+  PLAN                             27 ( 45.0% de quienes responden)
+  DOCENTES                         24 ( 40.0% de quienes responden)
+  LABORATORIOS                     22 ( 36.7% de quienes responden)
+  PROYECTOS                        22 ( 36.7% de quienes responden)
+  VINCULACION                      17 ( 28.3% de quienes responden)
+  PRACTICAS                        11 ( 18.3% de quienes responden)
+
+[aspectos_mejorar] respondieron=60
+  PROYECTOS                        20 ( 33.3% de quienes responden)
+  DOCENTES                         18 ( 30.0% de quienes responden)
+  PLAN                             16 ( 26.7% de quienes responden)
+  VINCULACION                      14 ( 23.3% de quienes responden)
+  LABORATORIOS                      9 ( 15.0% de quienes responden)
+  PRACTICAS                         8 ( 13.3% de quienes responden)
+
+[asignaturas_ventajosas] respondieron=60
+  BASE_DATOS                       32 ( 53.3% de quienes responden)
+  ING_SOFTWARE                     30 ( 50.0% de quienes responden)
+  SISTEMAS_OPERATIVOS              21 ( 35.0% de quienes responden)
+  REDES                            20 ( 33.3% de quienes responden)
+  INTELIGENCIA_ARTIFICIAL          18 ( 30.0% de quienes responden)
+
+[asignaturas_inutiles] respondieron=60
+  CONTABILIDAD                     22 ( 36.7% de quienes responden)
+  ECONOMIA                         21 ( 35.0% de quienes responden)
+  FISICA                           18 ( 30.0% de quienes responden)
+  TEORIA_GRAFOS                    14 ( 23.3% de quienes responden)
+  CALCULO                          13 ( 21.7% de quienes responden)
+
+[medio_convocatoria] respondieron=20
+  INTERNET_REDES                   20 (100.0% de quienes responden)
+  RECOMENDACION_TERCEROS           20 (100.0% de quienes responden)
+
+[cargos_desempenados] respondieron=20
+  ANALISTA                         20 (100.0% de quienes responden)
+  ESPECIALISTA                     20 (100.0% de quienes responden)

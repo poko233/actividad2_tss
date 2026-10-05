@@ -1,0 +1,56 @@
+ANALISIS DE MERCADO — PERFIL, FORMACION Y EMPLEABILIDAD
+Titulados de Ingenieria en Sistemas, UMSS (insumo Plan de Desarrollo
+Estrategico y acreditacion ARCUSUR)
+Fecha: 2026-10-04 | N titulados=60 | M empleadores=20
+
+1. INTRODUCCION Y JUSTIFICACION
+La Carrera de Ingenieria en Sistemas (UMSS) desarrolla su autoevaluacion
+para el Plan de Desarrollo Estrategico y su postulacion ante ARCUSUR.
+Objetivo general: cuantificar tendencias de formacion continua, patrones
+demograficos y de preferencia academica de los titulados. Objetivos
+especificos: HU1 antiguedad/empleabilidad, HU2 demanda de posgrado,
+HU3 financiamiento, HU4 brechas de competencias, HU5 reportes y
+dashboard. Justificacion: evidencia empirica de pertinencia curricular
+y de gestion de alianzas, criterio exigible por pares ARCUSUR.
+
+2. MARCO METODOLOGICO
+Diseno cuantitativo exploratorio sobre encuestas estructuradas (titulados
+N=60, empleadores M=20).
+Pipeline: Data Wrangling (validacion + limpieza) -> estadistica univariada
+(media, mediana, desv. estandar, frecuencias, histogramas) -> bivariada
+con pruebas chi-cuadrada de independencia -> IC 95% (t Student para
+medias, Z para proporciones, varianzas agrupadas para diferencias) ->
+experimentacion Monte Carlo ligera (solo Math.random) -> dashboard.
+Sin generadores congruenciales: la fuente son los datos reales.
+
+3. DEMANDA EDUCATIVA Y PERFIL DE LOS TITULADOS
+Antiguedad media 7.47 anios (desv. 5.01). Tasa de insercion 91.7% IC95 [84.7, 98.7].
+Intencion de posgrado 70.0%. Areas top: IA (14) ING_SOFTWARE (10) REDES_SEGURIDAD (9) 
+Segmentacion Junior/Intermedio/Consolidado y detalle en reporte_segmentacion.txt.
+
+4. OFERTA LABORAL Y REQUERIMIENTOS DEL SECTOR
+Sectores top empleadores: SERVICIOS_TI (6) TELECOM_REDES (4) EDUCACION_INVESTIGACION (4) 
+Nivel de formacion mas demandado y Likert institucional en reporte_empleadores.txt;
+competencias emergentes del texto libre en reporte_brechas.txt.
+
+5. DIAGNOSTICO Y SINTESIS
+Cruce area x financiamiento: chi2=16.69 gl=10 p=0.0815 (independencia). Cruce financiamiento x nivel: chi2=8.93 gl=8 p=0.3486 (independencia).
+Hallazgos y brechas criticas: ver reportes bivariado/brechas; estabilidad
+validada por sensibilidad del 90% (reporte_experimentacion.txt).
+
+6. CONCLUSIONES Y PROPUESTAS ESTRATEGICAS
+1. Mas del 50% usa recursos propios -> convenio con banca / becas parciales.
+2. Consulta al empleador baja -> activar observatorio permanente.
+Lineas permanentes: posgrados modulares, diversificacion de becas,
+vinculacion B2B y observatorio permanente de egresados.
+
+7. REFERENCIAS BIBLIOGRAFICAS (APA 7)
+Coss Bu, R. (1993). Simulacion: Un enfoque practico. Limusa.
+Hernandez Sampieri, R., Fernandez Collado, C., y Baptista Lucio, P. (2014).
+    Metodologia de la investigacion (6.a ed.). McGraw-Hill.
+Walpole, R. E., Myers, R. H., Myers, S. L., y Ye, K. (2012).
+    Probabilidad y estadistica para ingenieria y ciencias (9.a ed.). Pearson.
+Red de Agencias Nacionales de Acreditacion. (2008). Sistema de
+    acreditacion regional de carreras universitarias (ARCUSUR).
+Carrera de Ingenieria en Sistemas, UMSS. Encuestas a titulados y
+    empleadores: instrumento de autoevaluacion (documento interno).

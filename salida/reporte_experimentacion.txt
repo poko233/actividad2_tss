@@ -1,0 +1,72 @@
+======================================================================
+REPORTE EXPERIMENTACION (Monte Carlo ligero, Math.random)
+Fecha: 2026-10-04 | N_titulados=60 N_empleadores=20
+======================================================================
+Metodo: distribucion empirica observada. Sorteo con Math.random(), 1000 repeticiones.
+n_corrida = Z^2·p̂(1-p̂)/E^2 con Z=1.96, E=0.05.
+
+[Abrir maestria en IA] area=IA p_empirica=0.233 n_requerido(5%)=275
+  Demanda simulada (1000 reps): media=13.33 desv=2.06 IC95=[13.20 , 13.46]
+    [  7.0-  8.4]: 8
+    [  8.4-  9.8]: 25
+    [  9.8- 11.2]: 141
+    [ 11.2- 12.6]: 176
+    [ 12.6- 14.0]: 198
+    [ 14.0- 15.4]: 308
+    [ 15.4- 16.8]: 82
+    [ 16.8- 18.2]: 54
+    [ 18.2- 19.6]: 3
+    [ 19.6- 21.0]: 5
+[Abrir especialidad en ciberseguridad] area=REDES_SEGURIDAD p_empirica=0.150 n_requerido(5%)=196
+  Demanda simulada (1000 reps): media=8.67 desv=1.71 IC95=[8.56 , 8.78]
+    [  4.0-  5.0]: 4
+    [  5.0-  6.0]: 22
+    [  6.0-  7.0]: 63
+    [  7.0-  8.0]: 163
+    [  8.0-  9.0]: 218
+    [  9.0- 10.0]: 234
+    [ 10.0- 11.0]: 154
+    [ 11.0- 12.0]: 89
+    [ 12.0- 13.0]: 36
+    [ 13.0- 14.0]: 17
+[Abrir maestria en Ing. Software] area=ING_SOFTWARE p_empirica=0.167 n_requerido(5%)=213
+  Demanda simulada (1000 reps): media=9.55 desv=1.74 IC95=[9.45 , 9.66]
+    [  3.0-  4.2]: 1
+    [  4.2-  5.4]: 5
+    [  5.4-  6.6]: 33
+    [  6.6-  7.8]: 72
+    [  7.8-  9.0]: 158
+    [  9.0- 10.2]: 445
+    [ 10.2- 11.4]: 152
+    [ 11.4- 12.6]: 96
+    [ 12.6- 13.8]: 22
+    [ 13.8- 15.0]: 16
+[Abrir maestria en Base de Datos] area=BASE_DATOS p_empirica=0.083 n_requerido(5%)=117
+  Demanda simulada (1000 reps): media=4.94 desv=1.37 IC95=[4.86 , 5.03]
+    [  1.0-  1.8]: 3
+    [  1.8-  2.6]: 33
+    [  2.6-  3.4]: 95
+    [  3.4-  4.2]: 244
+    [  4.2-  5.0]: 0
+    [  5.0-  5.8]: 301
+    [  5.8-  6.6]: 196
+    [  6.6-  7.4]: 98
+    [  7.4-  8.2]: 24
+    [  8.2-  9.0]: 6
+[Abrir maestria en Robotica] area=ROBOTICA p_empirica=0.067 n_requerido(5%)=96
+  Demanda simulada (1000 reps): media=3.94 desv=1.14 IC95=[3.87 , 4.01]
+    [  0.0-  0.8]: 1
+    [  0.8-  1.6]: 10
+    [  1.6-  2.4]: 82
+    [  2.4-  3.2]: 243
+    [  3.2-  4.0]: 0
+    [  4.0-  4.8]: 379
+    [  4.8-  5.6]: 206
+    [  5.6-  6.4]: 63
+    [  6.4-  7.2]: 14
+    [  7.2-  8.0]: 2
+
+--- Sensibilidad (quitar 10% aleatorio, 200 repeticiones) ---
+  insercion: base=91.7% rango90%=[90.7%, 96.3%] => ROBUSTO
+  intencion posgrado: base=70.0% rango90%=[66.7%, 74.1%] => ROBUSTO
+  antiguedad media: base=7.47 rango90%=[6.96, 8.04] => ROBUSTO
