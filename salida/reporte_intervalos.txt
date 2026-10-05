@@ -1,19 +1,35 @@
 ======================================================================
 REPORTE INTERVALOS DE CONFIANZA 95%
-Fecha: 2026-10-04 | N_titulados=60 N_empleadores=20
+Fecha: 2026-10-05 | N_titulados=61 N_empleadores=20
 ======================================================================
+------------------------------------------------------------
+CÓMO LEER: el IC95% es el rango donde está el valor REAL con
+95% de confianza. Ej: inserción 91.8% IC [84.9, 98.7] =
+'la inserción real está entre 85% y 99%'.
+Ancho en puntos %: <5 preciso | 5-15 bueno | 15-30 regular.
+Ancho en puntos Likert: <0.5 preciso | 0.5-1.0 bueno | >1.0 regular.
+------------------------------------------------------------
 
 --- IC para MEDIAS (t Student: x̄ ± t·s/√n) ---
-edad                     n=60 media=34.23 IC95=[32.52 , 35.95]
-anios_vida_profesional   n=60 media=7.47 IC95=[6.20 , 8.73]
-anios_desempleado        n=60 media=1.38 IC95=[1.10 , 1.67]
-opinion_posgrado_fcyt    n=60 media=2.83 IC95=[2.63 , 3.03]
-satisfaccion_formacion   n=60 media=3.08 IC95=[2.88 , 3.29]
-concordancia_formacion_requerimientos n=60 media=2.63 IC95=[2.40 , 2.87]
+edad                     n=61 media=34.16 IC95=[32.47 , 35.85]
+  -> La media real está entre 32.47 y 35.85 años; estimación buena.
+anios_vida_profesional   n=61 media=7.43 IC95=[6.18 , 8.67]
+  -> La media real está entre 6.18 y 8.67 años; estimación buena.
+anios_desempleado        n=61 media=1.44 IC95=[1.14 , 1.75]
+  -> La media real está entre 1.14 y 1.75 años; estimación muy precisa.
+opinion_posgrado_fcyt    n=61 media=2.80 IC95=[2.60 , 3.01]
+  -> La media real está entre 2.60 y 3.01 puntos (escala 1-4); estimación muy precisa.
+satisfaccion_formacion   n=61 media=3.05 IC95=[2.84 , 3.26]
+  -> La media real está entre 2.84 y 3.26 puntos (escala 1-4); estimación muy precisa.
+concordancia_formacion_requerimientos n=61 media=2.61 IC95=[2.37 , 2.84]
+  -> La media real está entre 2.37 y 2.84 puntos (escala 1-4); estimación muy precisa.
 
 --- IC para PROPORCIONES (Z: p̂ ± 1.96·√(p̂(1-p̂)/n)) ---
-tasa_insercion (trabaja o emprende)        p̂= 91.7% IC95=[ 84.7% ,  98.7%] n=60
-intencion_posgrado (SI)                    p̂= 70.0% IC95=[ 58.4% ,  81.6%] n=60
-requiere_beca (BECA_TOTAL/PARCIAL)         p̂= 31.7% IC95=[ 19.9% ,  43.4%] n=60
+tasa_insercion (trabaja o emprende)        p̂= 91.8% IC95=[ 84.9% ,  98.7%] n=61
+intencion_posgrado (SI)                    p̂= 68.9% IC95=[ 57.2% ,  80.5%] n=61
+requiere_beca (BECA_TOTAL/PARCIAL)         p̂= 31.1% IC95=[ 19.5% ,  42.8%] n=61
 
 Nota HU1: el tiempo_primer_empleo es categorico; su IC se reporta como proporcion por categoria en univariado.
+  -> De cada 100 titulados, entre 85 y 99 trabajan o emprenden.
+  -> De cada 100 titulados, entre 57 y 80 quieren hacer posgrado.
+  -> De cada 100 titulados, entre 20 y 43 necesitarían beca.

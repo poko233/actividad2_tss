@@ -4,264 +4,523 @@ import java.nio.file.*;
 import java.time.LocalDate;
 import java.util.*;
 
-/**
- * Analizador de mercado de titulados Ing. Sistemas UMSS.
- * ----------------------------------------------------------------------------
- * QUÉ ES: pipeline de análisis estadístico descriptivo/exploratorio + consola
- * de reportes + dashboard HTML, según la "Guía Metodológica y Técnica Integral
- * (Enfoque ARCUSUR)". Cubre las HU1–HU5 de la guía:
- *   HU1 antigüedad/empleabilidad -> moduloUnivariado + moduloSegmentacion
- *   HU2 formación continua      -> frecuencias + cruces área×institución
- *   HU3 financiamiento          -> cruce financiamiento×nivel + χ² + IC beca
- *   HU4 brechas competencias    -> moduloBrechas (ver NOTA HU4 dentro)
- *   HU5 reportes/dashboard      -> exportarCsvs + generarDashboard
- * USO:
- *   Recolectar datos : java -cp bin Registro titulados.csv empleadores.csv
- *   Analizar         : java -cp bin Analizador titulados.csv empleadores.csv salida
- * RESTRICCIONES (fidelidad a la especificación):
- *   - Sin generadores congruenciales, sin rechazo/composición/transformada.
- *   - Única aleatoriedad: Math.random() en experimentación Monte Carlo y en
- *     el análisis de sensibilidad (§5 validación: quitar 10% y re-medir).
- *   - Fuente de información: exclusivamente los CSV de encuestas.
- */
+// ============================================================================
+// Analizador — Pipeline de análisis de mercado, titulados Ing. Sistemas UMSS.
+// ----------------------------------------------------------------------------
+// QUÉ HACE (guía ARCUSUR, HU1–HU5):
+//   HU1 Antigüedad y empleabilidad  -> describirVariablesNumericas +
+//                                      clasificarPorAntiguedad + moduloSegmentacion
+//   HU2 Formación continua          -> frecuencias de área + cruces área×institución
+//   HU3 Financiamiento              -> cruce financiamiento×nivel + χ² + IC de beca
+//   HU4 Brechas de competencias     -> moduloBrechas (ver NOTA HU4 dentro)
+//   HU5 Reportes y dashboard        -> exportarArchivosCsv + generarDashboardHtml
+// CÓMO SE USA:
+//   Recolectar datos : java -cp bin Registro titulados.csv empleadores.csv
+//   Analizar         : java -cp bin Analizador titulados.csv empleadores.csv salida
+// REGLAS DEL PROYECTO (no negociables):
+//   - Sin generadores congruenciales, sin rechazo/composición/transformada.
+//   - Única aleatoriedad: Math.random() en Monte Carlo y en sensibilidad.
+//   - La única fuente de información son los CSV de encuestas.
+// CONVENCIÓN DE NOMBRES: todo en español, sin abreviaturas; cada método
+// explica en su cabecera QUÉ calcula, de QUÉ HU viene y CÓMO leer el resultado.
+// ============================================================================
 public class Analizador {
 
-    static Path salida;
-    static CsvUtil.Tabla TIT, EMP;
-    static StringBuilder dash = new StringBuilder();
+    // ---- Estado global del análisis (se llena una vez en main) ----
+    static Path carpetaSalida;              // carpeta donde se escriben reportes
+    static CsvUtil.Tabla titulados;         // encuesta a titulados ya limpia
+    static CsvUtil.Tabla empleadores;       // encuesta a empleadores ya limpia
 
-    // Columnas obligatorias (fidelidad seccion 1.1 / 1.2)
-    static final String[] OBLIG_TIT = {"id_titulado", "edad", "genero", "interes_posgrado",
-            "anios_vida_profesional", "situacion_laboral_actual"};
-    static final String[] OBLIG_EMP = {"id_empleador", "nombre_empresa", "tipo_organizacion",
-            "tamano_organizacion", "sector_rubro"};
+    // ---- Columnas obligatorias: si faltan, se avisa pero no se falla ----
+    static final String[] COLUMNAS_OBLIGATORIAS_TITULADOS = {"id_titulado", "edad", "genero",
+            "interes_posgrado", "anios_vida_profesional", "situacion_laboral_actual"};
+    static final String[] COLUMNAS_OBLIGATORIAS_EMPLEADORES = {"id_empleador", "nombre_empresa",
+            "tipo_organizacion", "tamano_organizacion", "sector_rubro"};
 
-    static final String[] LIKERT_EMP = {"likert_confianza_formadora", "likert_consistencia_titulo",
-            "likert_consulta_regular", "likert_conoce_perfil", "likert_coherencia_perfil",
-            "likert_formacion_desempeno", "likert_considera_opinion", "likert_competencias_laborales",
-            "likert_valores_actitudes", "likert_participacion_procesos"};
+    // ---- Los 10 ítems Likert institucionales de la encuesta a empleadores ----
+    static final String[] ITEMS_LIKERT_EMPLEADOR = {"likert_confianza_formadora",
+            "likert_consistencia_titulo", "likert_consulta_regular", "likert_conoce_perfil",
+            "likert_coherencia_perfil", "likert_formacion_desempeno", "likert_considera_opinion",
+            "likert_competencias_laborales", "likert_valores_actitudes", "likert_participacion_procesos"};
+
+    // ---- Nombres de columna que se usan en varios módulos (un solo lugar) ----
+    static final String COL_ANIOS_VIDA_PROFESIONAL = "anios_vida_profesional";
+    static final String COL_ANIOS_DESEMPLEO = "anios_desempleado";
+    static final String COL_INTERES_POSGRADO = "interes_posgrado";
+    static final String COL_AREA_INTERES = "area_interes_posgrado";
+    static final String COL_SITUACION_LABORAL = "situacion_laboral_actual";
+    static final String COL_FINANCIAMIENTO = "financiamiento_formacion";
+    static final String COL_NIVEL_POSGRADO = "nivel_posgrado";
+    static final String COL_SATISFACCION_FORMACION = "satisfaccion_formacion";
 
     // ------------------------------------------------------------------------
-    // main(): orquesta el pipeline completo. Flujo:
-    //   1) Carga y Data Wrangling de ambos CSV (módulo 4.1).
-    //   2) Calcula los 7 módulos de análisis (4.2–4.8) en memoria.
-    //   3) Escribe reportes .txt + informe ARCUSUR + exportables CSV.
-    //   4) Genera dashboard.html y muestra el resumen ejecutivo en consola.
+    // main(): director del pipeline. Etapas:
+    //   1) Carga + Data Wrangling de ambos CSV (módulo 4.1).
+    //   2) Cálculo de los 8 módulos de análisis (4.2–4.8 + informe ARCUSUR).
+    //   3) Escritura de reportes .txt, exportables .csv y dashboard.html.
+    //   4) Resumen ejecutivo en consola para la Dirección de Carrera.
     // ------------------------------------------------------------------------
     public static void main(String[] args) throws Exception {
-        // args opcionales con valores por defecto (carpeta actual / salida).
-        String fTit = args.length > 0 ? args[0] : "titulados.csv";
-        String fEmp = args.length > 1 ? args[1] : "empleadores.csv";
-        String dOut = args.length > 2 ? args[2] : "salida";
-        salida = Paths.get(dOut);
-        Files.createDirectories(salida);
+        // Argumentos opcionales con valores por defecto (carpeta actual).
+        String rutaTitulados = args.length > 0 ? args[0] : "titulados.csv";
+        String rutaEmpleadores = args.length > 1 ? args[1] : "empleadores.csv";
+        String nombreCarpetaSalida = args.length > 2 ? args[2] : "salida";
+        carpetaSalida = Paths.get(nombreCarpetaSalida);
+        Files.createDirectories(carpetaSalida);
 
         System.out.println("=== ANALISIS DE MERCADO TITULADOS ING. SISTEMAS UMSS ===");
-        TIT = cargar(fTit, OBLIG_TIT, "titulados");
-        EMP = cargar(fEmp, OBLIG_EMP, "empleadores");
-        limpiar(TIT);
-        limpiar(EMP);
+        titulados = cargarEncuesta(rutaTitulados, COLUMNAS_OBLIGATORIAS_TITULADOS, "titulados");
+        empleadores = cargarEncuesta(rutaEmpleadores, COLUMNAS_OBLIGATORIAS_EMPLEADORES, "empleadores");
+        limpiarDatos(titulados);
+        limpiarDatos(empleadores);
 
-        // Cada módulo devuelve su reporte como String (luego se escribe a disco).
-        String univ = moduloUnivariado();
-        String biv = moduloBivariado();
-        String ics = moduloIntervalos();
-        String bre = moduloBrechas();
-        String seg = moduloSegmentacion();
-        String exp = moduloExperimentacion();
-        String emp = moduloEmpleadores();
-        String inf = moduloInforme(); // documento final estructura ARCUSUR §2
+        // Cada módulo devuelve su reporte como texto (luego se guarda a disco).
+        String reporteUnivariado = moduloUnivariado();
+        String reporteBivariado = moduloBivariado();
+        String reporteIntervalos = moduloIntervalos();
+        String reporteBrechas = moduloBrechas();
+        String reporteSegmentacion = moduloSegmentacion();
+        String reporteExperimentacion = moduloExperimentacion();
+        String reporteEmpleadores = moduloEmpleadores();
+        String informeArcusur = moduloInforme(); // documento final, estructura §2
 
-        escribir("reporte_univariado.txt", univ);
-        escribir("reporte_bivariado.txt", biv);
-        escribir("reporte_intervalos.txt", ics);
-        escribir("reporte_brechas.txt", bre);
-        escribir("reporte_segmentacion.txt", seg);
-        escribir("reporte_experimentacion.txt", exp);
-        escribir("reporte_empleadores.txt", emp);
-        escribir("informe_mercado.txt", inf);
+        guardarReporte("reporte_univariado.txt", reporteUnivariado);
+        guardarReporte("reporte_bivariado.txt", reporteBivariado);
+        guardarReporte("reporte_intervalos.txt", reporteIntervalos);
+        guardarReporte("reporte_brechas.txt", reporteBrechas);
+        guardarReporte("reporte_segmentacion.txt", reporteSegmentacion);
+        guardarReporte("reporte_experimentacion.txt", reporteExperimentacion);
+        guardarReporte("reporte_empleadores.txt", reporteEmpleadores);
+        guardarReporte("informe_mercado.txt", informeArcusur);
 
-        exportarCsvs();
-        generarDashboard();
+        exportarArchivosCsv();
+        generarDashboardHtml();
 
-        dashboardConsola();
-        System.out.println("\nArchivos generados en: " + salida.toAbsolutePath());
+        mostrarResumenEjecutivo();
+        System.out.println("\nArchivos generados en: " + carpetaSalida.toAbsolutePath());
         System.out.println("Abra dashboard.html en su navegador.");
     }
 
     // ------------------------------------------------------------------------
-    // CARGA Y LIMPIEZA (módulo 4.1 + fase Data Wrangling del marco §2).
-    // cargar(): lee el CSV o sigue con tabla vacía si falta el archivo
-    //   (así el análisis de titulados no se bloquea sin empleadores).
-    //   Valida columnas obligatorias y AVISA las faltantes (no falla).
-    // limpiar(): normaliza cada celda — trim, nulos ("null","n/a","-") -> "",
-    //   numéricos inválidos -> "" (para no romper parseos), SI/NO unificado.
-    //   Sin esta fase, "Si" y "SI" serían categorías distintas en los cruces.
+    // CARGA Y LIMPIEZA (módulo 4.1 = fase Data Wrangling del marco §2).
+    // cargarEncuesta(): lee el CSV; si el archivo no existe sigue con tabla
+    //   vacía para no bloquear el otro análisis. Valida columnas obligatorias
+    //   y AVISA las faltantes (no interrumpe).
+    // limpiarDatos(): normaliza cada celda — recorta espacios, convierte
+    //   nulos ("null","n/a","-") en "", invalida números mal escritos y
+    //   unifica SI/NO. Sin esto, "Si" y "SI" contarían como categorías
+    //   distintas y los cruces χ² saldrían fragmentados.
     // ------------------------------------------------------------------------
-    static CsvUtil.Tabla cargar(String f, String[] oblig, String nombre) throws IOException {
-        Path p = Paths.get(f);
-        if (!Files.exists(p)) {
-            System.out.println("[AVISO] No existe " + f + " (" + nombre + "). Se continua con 0 registros.");
-            CsvUtil.Tabla t = new CsvUtil.Tabla();
-            t.headers.addAll(Arrays.asList(oblig));
-            return t;
+    static CsvUtil.Tabla cargarEncuesta(String rutaArchivo, String[] columnasObligatorias,
+            String nombreEncuesta) throws IOException {
+        Path ruta = Paths.get(rutaArchivo);
+        if (!Files.exists(ruta)) {
+            System.out.println("[AVISO] No existe " + rutaArchivo + " (" + nombreEncuesta
+                    + "). Se continua con 0 registros.");
+            CsvUtil.Tabla tablaVacia = new CsvUtil.Tabla();
+            tablaVacia.headers.addAll(Arrays.asList(columnasObligatorias));
+            return tablaVacia;
         }
-        CsvUtil.Tabla t = CsvUtil.leer(p);
-        List<String> faltan = new ArrayList<>();
-        for (String o : oblig) if (!t.headers.contains(o)) faltan.add(o);
-        if (!faltan.isEmpty())
-            System.out.println("[AVISO] " + f + " columnas faltantes: " + faltan + " (se asumen vacias)");
-        System.out.println("[OK] " + f + ": " + t.filas.size() + " registros, " + t.headers.size() + " columnas.");
-        return t;
+        CsvUtil.Tabla tablaEncuesta = CsvUtil.leer(ruta);
+        List<String> columnasFaltantes = new ArrayList<>();
+        for (String columnaObligatoria : columnasObligatorias)
+            if (!tablaEncuesta.headers.contains(columnaObligatoria))
+                columnasFaltantes.add(columnaObligatoria);
+        if (!columnasFaltantes.isEmpty())
+            System.out.println("[AVISO] " + rutaArchivo + " columnas faltantes: " + columnasFaltantes
+                    + " (se asumen vacias)");
+        System.out.println("[OK] " + rutaArchivo + ": " + tablaEncuesta.filas.size()
+                + " registros, " + tablaEncuesta.headers.size() + " columnas.");
+        return tablaEncuesta;
     }
 
-    /** Data wrangling: trim, "" para nulos, normaliza SI/NO, numéricos inválidos->"". */
-    static void limpiar(CsvUtil.Tabla t) {
-        Set<String> numericas = new HashSet<>(Arrays.asList("edad", "anios_vida_profesional", "anios_desempleado"));
-        for (Map<String, String> m : t.filas) {
-            for (String h : t.headers) {
-                String v = m.getOrDefault(h, "");
-                if (v == null) v = "";
-                v = v.trim();
-                if (v.equalsIgnoreCase("null") || v.equalsIgnoreCase("n/a") || v.equals("-") || v.equalsIgnoreCase("na"))
-                    v = "";
-                if (numericas.contains(h) && !v.isEmpty()) {
-                    try { Double.parseDouble(v.replace(",", ".")); }
-                    catch (NumberFormatException e) { v = ""; }
+    /** Data wrangling: recorta, vacía nulos, unifica SI/NO, depura numéricos. */
+    static void limpiarDatos(CsvUtil.Tabla tabla) {
+        Set<String> columnasNumericas = new HashSet<>(
+                Arrays.asList("edad", COL_ANIOS_VIDA_PROFESIONAL, COL_ANIOS_DESEMPLEO));
+        Set<String> columnasSiNo = new HashSet<>(Arrays.asList(COL_INTERES_POSGRADO,
+                "realizo_formacion_complementaria", "red_contactos", "primer_empleo_actual",
+                "contrato_ultimos_5_anios"));
+        for (Map<String, String> respuesta : tabla.filas) {
+            for (String nombreColumna : tabla.headers) {
+                String valorCelda = respuesta.getOrDefault(nombreColumna, "");
+                if (valorCelda == null) valorCelda = "";
+                valorCelda = valorCelda.trim();
+                if (valorCelda.equalsIgnoreCase("null") || valorCelda.equalsIgnoreCase("n/a")
+                        || valorCelda.equals("-") || valorCelda.equalsIgnoreCase("na"))
+                    valorCelda = "";
+                if (columnasNumericas.contains(nombreColumna) && !valorCelda.isEmpty()) {
+                    try { Double.parseDouble(valorCelda.replace(",", ".")); }
+                    catch (NumberFormatException errorParseo) { valorCelda = ""; }
                 }
-                if ((h.equals("interes_posgrado") || h.equals("realizo_formacion_complementaria")
-                        || h.equals("red_contactos") || h.equals("primer_empleo_actual")
-                        || h.equals("contrato_ultimos_5_anios")) && !v.isEmpty()) {
-                    String n = CsvUtil.normalizar(v);
-                    if (n.startsWith("SI") || n.startsWith("SÍ") || n.equals("YES") || n.equals("1")) v = "SI";
-                    else if (n.startsWith("NO") || n.equals("0")) v = "NO";
+                if (columnasSiNo.contains(nombreColumna) && !valorCelda.isEmpty()) {
+                    String valorNormalizado = CsvUtil.normalizar(valorCelda);
+                    if (valorNormalizado.startsWith("SI") || valorNormalizado.startsWith("SÍ")
+                            || valorNormalizado.equals("YES") || valorNormalizado.equals("1"))
+                        valorCelda = "SI";
+                    else if (valorNormalizado.startsWith("NO") || valorNormalizado.equals("0"))
+                        valorCelda = "NO";
                 }
-                m.put(h, v);
+                respuesta.put(nombreColumna, valorCelda);
             }
         }
     }
 
-    // Helpers de acceso tipado a columnas: col() crudo, num() filtra no
-    // numéricos (coma decimal incluida), likertCol() traduce etiquetas a
-    // 1..4 y descarta NO_SABE/vacíos (NaN) para no sesgar medias.
-    static List<String> col(CsvUtil.Tabla t, String c) {
-        List<String> out = new ArrayList<>();
-        for (Map<String, String> m : t.filas) out.add(m.getOrDefault(c, ""));
-        return out;
+    // ------------------------------------------------------------------------
+    // Lecturas tipadas de columnas (atajos que evitan repetir parseos):
+    //   leerColumnaTexto()    -> valores crudos tal cual quedaron limpios.
+    //   leerColumnaNumerica() -> solo lo convertible a número (acepta coma
+    //                            decimal); lo demás se salta en silencio.
+    //   leerColumnaLikert()   -> etiquetas ("DE_ACUERDO") traducidas a 1..4;
+    //                            "NO_SABE"/vacío se descartan (NaN) para no
+    //                            sesgar las medias.
+    // ------------------------------------------------------------------------
+    static List<String> leerColumnaTexto(CsvUtil.Tabla tabla, String nombreColumna) {
+        List<String> valoresTexto = new ArrayList<>();
+        for (Map<String, String> respuesta : tabla.filas)
+            valoresTexto.add(respuesta.getOrDefault(nombreColumna, ""));
+        return valoresTexto;
     }
 
-    static List<Double> num(CsvUtil.Tabla t, String c) {
-        List<Double> out = new ArrayList<>();
-        for (Map<String, String> m : t.filas) {
-            String v = m.getOrDefault(c, "").replace(",", ".");
-            if (v.isEmpty()) continue;
-            try { out.add(Double.parseDouble(v)); } catch (NumberFormatException ignored) {}
+    static List<Double> leerColumnaNumerica(CsvUtil.Tabla tabla, String nombreColumna) {
+        List<Double> valoresNumericos = new ArrayList<>();
+        for (Map<String, String> respuesta : tabla.filas) {
+            String textoNumero = respuesta.getOrDefault(nombreColumna, "").replace(",", ".");
+            if (textoNumero.isEmpty()) continue;
+            try { valoresNumericos.add(Double.parseDouble(textoNumero)); }
+            catch (NumberFormatException valorNoNumerico) {}
         }
-        return out;
+        return valoresNumericos;
     }
 
-    static List<Double> likertCol(CsvUtil.Tabla t, String c) {
-        List<Double> out = new ArrayList<>();
-        for (Map<String, String> m : t.filas) {
-            double v = StatsUtil.likert4(m.getOrDefault(c, ""));
-            if (!Double.isNaN(v)) out.add(v);
+    static List<Double> leerColumnaLikert(CsvUtil.Tabla tabla, String nombreColumna) {
+        List<Double> puntajesLikert = new ArrayList<>();
+        for (Map<String, String> respuesta : tabla.filas) {
+            double puntaje = StatsUtil.likert4(respuesta.getOrDefault(nombreColumna, ""));
+            if (!Double.isNaN(puntaje)) puntajesLikert.add(puntaje);
         }
-        return out;
+        return puntajesLikert;
     }
 
-    static void escribir(String nombre, String contenido) throws IOException {
-        Files.writeString(salida.resolve(nombre), contenido, StandardCharsets.UTF_8);
-        System.out.println("  -> " + nombre);
+    // guardarReporte(): escribe un reporte de texto en la carpeta de salida.
+    static void guardarReporte(String nombreArchivo, String contenidoReporte) throws IOException {
+        Files.writeString(carpetaSalida.resolve(nombreArchivo), contenidoReporte, StandardCharsets.UTF_8);
+        System.out.println("  -> " + nombreArchivo);
     }
 
-    static String encabezado(String titulo) {
-        return "=".repeat(70) + "\n" + titulo
-                + "\nFecha: " + LocalDate.now() + " | N_titulados=" + TIT.filas.size()
-                + " N_empleadores=" + EMP.filas.size() + "\n" + "=".repeat(70) + "\n";
+    // encabezadoReporte(): cabecera común con fecha y tamaños de muestra.
+    static String encabezadoReporte(String tituloReporte) {
+        return "=".repeat(70) + "\n" + tituloReporte
+                + "\nFecha: " + LocalDate.now() + " | N_titulados=" + titulados.filas.size()
+                + " N_empleadores=" + empleadores.filas.size() + "\n" + "=".repeat(70) + "\n";
     }
 
     // ------------------------------------------------------------------------
-    // moduloUnivariado (§4.2 + HU1/HU2): una variable a la vez.
-    //   Numéricas (edad, antigüedad, desempleo): media/mediana/desv/min/
-    //     cuartiles/max + histograma textual de 10 intervalos.
+    // GUÍAS DE LECTURA: cada reporte empieza con un recuadro "CÓMO LEER" en
+    // lenguaje simple, más una línea "-> Lectura:" tras cada resultado.
+    // Idea: cualquiera (sin estadística) entiende qué significa cada número.
+    // ------------------------------------------------------------------------
+
+    // guiaLecturaLikert(): leyenda texto->número + reglas para leer n, media,
+    // mediana, desv e IC95 de un vistazo.
+    static String guiaLecturaLikert() {
+        return "------------------------------------------------------------\n"
+                + "CÓMO LEER ESTE REPORTE (30 segundos)\n"
+                + "------------------------------------------------------------\n"
+                + "Las opiniones vienen como TEXTO y el programa las traduce a\n"
+                + "NÚMEROS para poder promediarlas. La traducción es esta:\n"
+                + "  1 = TOTALMENTE EN DESACUERDO / INSATISFECHO / NO IMPORTANTE\n"
+                + "  2 = EN DESACUERDO / ALGO SATISFECHO / POCO IMPORTANTE\n"
+                + "  3 = DE ACUERDO / SATISFECHO / IMPORTANTE\n"
+                + "  4 = TOTALMENTE DE ACUERDO / MUY IMPORTANTE\n"
+                + "OJO: 'satisfaccion_negocio' solo llega hasta 3 (su encuesta\n"
+                + "no tiene 'muy satisfecho'). 'NO_SABE' y vacíos NO se cuentan.\n"
+                + "  n      = cuántos respondieron (n chico = poco confiable).\n"
+                + "  media  = promedio. 1-1.5 rechazo | 1.5-2.5 desacuerdo |\n"
+                + "           2.5-3.0 tibio | 3.0-3.5 de acuerdo | 3.5-4 total.\n"
+                + "  mediana= respuesta del medio (no la mueven los extremos).\n"
+                + "  desv   = dispersión: <0.5 todos igual | 0.5-1.0 moderada |\n"
+                + "           >1.0 divididos.\n"
+                + "  IC95%  = rango del valor REAL (95% confianza). Ancho <0.5\n"
+                + "           preciso | 0.5-1.0 bueno | 1.0-2.0 regular | >2.0 malo.\n"
+                + "------------------------------------------------------------\n";
+    }
+
+    // maximoEscalaLikert(): techo de cada pregunta (casi todas 1-4;
+    // satisfaccion_negocio solo tiene 3 opciones en la encuesta).
+    static int maximoEscalaLikert(String nombreColumna) {
+        if (nombreColumna.equals("satisfaccion_negocio")) return 3;
+        return 4;
+    }
+
+    // etiquetaMediaLikert(): traduce el promedio a palabras ("tibio",
+    // "de acuerdo"...) según en qué zona de la escala 1-max cayó.
+    static String etiquetaMediaLikert(double mediaObservada, int maximoEscala) {
+        if (Double.isNaN(mediaObservada)) return "sin dato";
+        if (mediaObservada < 1.5) return "rechazo fuerte (zona del 1)";
+        if (mediaObservada < 2.5) return "desacuerdo (zona del 2)";
+        if (mediaObservada < 3.0) return "tibio, entre desacuerdo y acuerdo";
+        if (mediaObservada < 3.5) return "de acuerdo / satisfecho (zona del 3)";
+        return "acuerdo total (zona del " + maximoEscala + ")";
+    }
+
+    // etiquetaPrecision(): cuán creíble es la estimación según el ANCHO del IC.
+    // Los umbrales dependen de la escala: 0.4 puntos Likert es mucho, pero
+    // 0.4 años es poquísimo. Por eso se distingue esEscalaLikert (1-4) de
+    // años (edad, antigüedad, desempleo).
+    static String etiquetaPrecision(double limiteInferior, double limiteSuperior,
+            boolean esEscalaLikert) {
+        if (Double.isNaN(limiteInferior) || Double.isNaN(limiteSuperior))
+            return "sin dato";
+        double anchoIntervalo = limiteSuperior - limiteInferior;
+        if (esEscalaLikert) {
+            if (anchoIntervalo < 0.5) return "estimación muy precisa";
+            if (anchoIntervalo < 1.0) return "estimación buena";
+            if (anchoIntervalo < 2.0) return "estimación regular (muestra chica o dividida)";
+            return "no concluyente (muestra muy chica)";
+        }
+        if (anchoIntervalo < 1.0) return "estimación muy precisa";
+        if (anchoIntervalo < 4.0) return "estimación buena";
+        if (anchoIntervalo < 8.0) return "estimación regular (muestra chica o dividida)";
+        return "no concluyente (muestra muy chica)";
+    }
+
+    // etiquetaConsenso(): cuán de acuerdo están entre sí (por la desv).
+    static String etiquetaConsenso(double desviacionEstandar) {
+        if (Double.isNaN(desviacionEstandar)) return "sin dato";
+        if (desviacionEstandar < 0.5) return "todos piensan casi igual";
+        if (desviacionEstandar <= 1.0) return "opiniones moderadamente dispersas";
+        return "opiniones muy divididas";
+    }
+
+    // guiaLecturaChiCuadrada(): cómo leer p y chi2 sin saber estadística.
+    static String guiaLecturaChiCuadrada() {
+        return "------------------------------------------------------------\n"
+                + "CÓMO LEER: cada tabla cruza 2 preguntas (ej. área VS beca).\n"
+                + "chi2 mide qué tan lejos está lo visto de 'no hay relación'.\n"
+                + "p = probabilidad de ver esto por puro azar:\n"
+                + "  p < 0.05  -> SÍ hay relación (una condiciona a la otra).\n"
+                + "  p >= 0.05 -> NO hay evidencia de relación.\n"
+                + "gl = tamaño de la tabla. 'Consistencia OK' = totales cuadran.\n"
+                + "------------------------------------------------------------\n";
+    }
+
+    // fraseDependencia(): veredicto en una frase con los nombres de las
+    // variables involucradas (evita releer el número p).
+    static String fraseDependencia(String nombreColumnaA, String nombreColumnaB,
+            double pValor) {
+        if (Double.isNaN(pValor)) return "En palabras simples: no se pudo calcular.";
+        if (pValor < 0.05)
+            return "En palabras simples: '" + nombreColumnaA + "' SÍ está relacionada con '"
+                    + nombreColumnaB + "'.";
+        return "En palabras simples: '" + nombreColumnaA + "' NO muestra relación con '"
+                + nombreColumnaB + "' en esta muestra.";
+    }
+
+    // guiaLecturaIntervalos(): el IC como frase ("entre X y Y") + anchos.
+    static String guiaLecturaIntervalos() {
+        return "------------------------------------------------------------\n"
+                + "CÓMO LEER: el IC95% es el rango donde está el valor REAL con\n"
+                + "95% de confianza. Ej: inserción 91.8% IC [84.9, 98.7] =\n"
+                + "'la inserción real está entre 85% y 99%'.\n"
+                + "Ancho en puntos %: <5 preciso | 5-15 bueno | 15-30 regular.\n"
+                + "Ancho en puntos Likert: <0.5 preciso | 0.5-1.0 bueno | >1.0 regular.\n"
+                + "------------------------------------------------------------\n";
+    }
+
+    // guiaLecturaBrechas(): brecha = lo que FALTA para llegar al ideal.
+    static String guiaLecturaBrechas() {
+        return "------------------------------------------------------------\n"
+                + "CÓMO LEER: brecha = lo que FALTA para llegar al ideal.\n"
+                + " (a) techo 4 - media: 0 = perfecto; cerca de 3 = grave.\n"
+                + "     'CRITICA' = está entre las 5 peores.\n"
+                + " (b) positivo = el empleador ve mejor desempeño del que el\n"
+                + "     titulado siente con su formación.\n"
+                + " (c) menciones = veces que aparece la palabra en texto libre.\n"
+                + " (d) importancia - suficiencia: 1.5 o más = brecha crítica.\n"
+                + "------------------------------------------------------------\n";
+    }
+
+    // guiaLecturaSegmentos(): quién es quién en Junior/Intermedio/Consolidado.
+    static String guiaLecturaSegmentos() {
+        return "------------------------------------------------------------\n"
+                + "CÓMO LEER: Junior 0-3 años (recién egresados) | Intermedio\n"
+                + "4-7 | Consolidado 8+ (trayectoria larga).\n"
+                + "sat_formac = satisfacción media en escala 1-4.\n"
+                + "int_posg_% = % del segmento que quiere hacer posgrado.\n"
+                + "tasa_desemp. = fracción de su vida profesional sin empleo\n"
+                + "(0.67 = 2 de cada 3 años desempleado).\n"
+                + "Al final: si el IC de la diferencia incluye al 0, los\n"
+                + "segmentos NO difieren entre sí.\n"
+                + "------------------------------------------------------------\n";
+    }
+
+    // guiaLecturaMonteCarlo(): qué es (y qué no es) la simulación de demanda.
+    static String guiaLecturaMonteCarlo() {
+        return "------------------------------------------------------------\n"
+                + "CÓMO LEER: no se inventan datos. p_empirica = % real afín.\n"
+                + "Se simula 1000 veces '¿cuántos vendrían?' sorteando al azar.\n"
+                + "media = demanda esperada; IC95 = rango probable de inscritos.\n"
+                + "n_requerido = encuestas necesarias para error de 5% o menos.\n"
+                + "Sensibilidad: si al quitar 10% todo se mueve poco => ROBUSTO.\n"
+                + "------------------------------------------------------------\n";
+    }
+
+    // guiaLecturaEmpleadores(): acuerdo% y escala propia del empleador.
+    static String guiaLecturaEmpleadores() {
+        return "------------------------------------------------------------\n"
+                + "CÓMO LEER: acuerdo% = % que marcó 3 (parcialmente) o 4.\n"
+                + "Escala del empleador: 1 = totalmente en desacuerdo,\n"
+                + "3 = parcialmente de acuerdo, 4 = totalmente de acuerdo\n"
+                + "(el 2 no existe en su encuesta). NO_SABE se excluye.\n"
+                + "Cobertura: mínimo 3 empresas, una pública y una privada.\n"
+                + "------------------------------------------------------------\n";
+    }
+
+    // ------------------------------------------------------------------------
+    // moduloUnivariado (§4.2 + HU1/HU2): describe UNA variable a la vez.
+    //   Numéricas (edad, antigüedad, desempleo): media/mediana/desv/mín/
+    //     cuartiles/máx + histograma textual de 10 intervalos.
     //   Likert: media/mediana/desv + IC95 (t) — evidencia para ARCUSUR.
-    //   Categóricas: frecuencia absoluta+relativa, moda y barra textual.
+    //   Categóricas: frecuencia absoluta + relativa, moda y barra textual.
     //   Múltiples (separador |): conteo por opción sobre quienes responden.
     // ------------------------------------------------------------------------
     static String moduloUnivariado() {
-        StringBuilder sb = new StringBuilder(encabezado("REPORTE UNIVARIADO"));
-        sb.append("\n--- VARIABLES NUMERICAS (titulados) ---\n");
-        for (String c : new String[]{"edad", "anios_vida_profesional", "anios_desempleado"}) {
-            List<Double> xs = num(TIT, c);
-            sb.append("\n[").append(c).append("] n=").append(xs.size()).append("\n");
-            if (xs.isEmpty()) { sb.append("  Sin datos.\n"); continue; }
-            double[] q = StatsUtil.cuartiles(xs);
-            sb.append(String.format(Locale.US,
+        StringBuilder reporte = new StringBuilder(encabezadoReporte("REPORTE UNIVARIADO"));
+        reporte.append(guiaLecturaLikert());
+        describirVariablesNumericas(reporte,
+                new String[]{"edad", COL_ANIOS_VIDA_PROFESIONAL, COL_ANIOS_DESEMPLEO});
+        describirVariablesLikert(reporte, new String[]{"opinion_posgrado_fcyt",
+                COL_SATISFACCION_FORMACION, "concordancia_formacion_requerimientos",
+                "satisfaccion_negocio", "importancia_formacion_negocio"});
+        describirVariablesCategoricas(reporte, new String[]{"genero",
+                "realizo_formacion_complementaria", COL_NIVEL_POSGRADO, "institucion_formacion",
+                COL_FINANCIAMIENTO, COL_INTERES_POSGRADO, COL_AREA_INTERES,
+                "institucion_futura_posgrado", COL_SITUACION_LABORAL, "tiempo_primer_empleo",
+                "num_empleos_desde_titulacion", "red_contactos"});
+        describirPreguntasMultiples(reporte, new String[]{"aspectos_utiles", "aspectos_mejorar",
+                "asignaturas_ventajosas", "asignaturas_inutiles", "medio_convocatoria",
+                "cargos_desempenados"});
+        return reporte.toString();
+    }
+
+    // describirVariablesNumericas(): resumen de 8 estadísticos + histograma
+    // con barras de '#' proporcionales al intervalo más lleno.
+    static void describirVariablesNumericas(StringBuilder reporte, String[] nombresColumnas) {
+        reporte.append("\n--- VARIABLES NUMERICAS (titulados) ---\n");
+        for (String nombreColumna : nombresColumnas) {
+            List<Double> valoresObservados = leerColumnaNumerica(titulados, nombreColumna);
+            reporte.append("\n[").append(nombreColumna).append("] n=").append(valoresObservados.size()).append("\n");
+            if (valoresObservados.isEmpty()) { reporte.append("  Sin datos.\n"); continue; }
+            double[] cuartiles = StatsUtil.cuartiles(valoresObservados);
+            reporte.append(String.format(Locale.US,
                     "  media=%s mediana=%s desv=%s min=%s Q1=%s Q2=%s Q3=%s max=%s\n",
-                    StatsUtil.f2(StatsUtil.media(xs)), StatsUtil.f2(StatsUtil.mediana(xs)),
-                    StatsUtil.f2(StatsUtil.desvEstandar(xs)), StatsUtil.f2(StatsUtil.min(xs)),
-                    StatsUtil.f2(q[0]), StatsUtil.f2(q[1]), StatsUtil.f2(q[2]), StatsUtil.f2(StatsUtil.max(xs))));
-            List<double[]> h = StatsUtil.histograma(xs, 10);
-            sb.append("  Histograma (10 intervalos):\n");
-            int mx = 1; for (double[] b : h) mx = Math.max(mx, (int) b[2]);
-            for (double[] b : h) {
-                int nb = (int) Math.round(b[2] / (double) mx * 40);
-                sb.append(String.format(Locale.US, "  [%6.1f - %6.1f) %4d %s\n", b[0], b[1], (int) b[2], "#".repeat(nb)));
+                    StatsUtil.f2(StatsUtil.media(valoresObservados)),
+                    StatsUtil.f2(StatsUtil.mediana(valoresObservados)),
+                    StatsUtil.f2(StatsUtil.desvEstandar(valoresObservados)),
+                    StatsUtil.f2(StatsUtil.min(valoresObservados)),
+                    StatsUtil.f2(cuartiles[0]), StatsUtil.f2(cuartiles[1]), StatsUtil.f2(cuartiles[2]),
+                    StatsUtil.f2(StatsUtil.max(valoresObservados))));
+            List<double[]> intervalosHistograma = StatsUtil.histograma(valoresObservados, 10);
+            reporte.append("  Histograma (10 intervalos):\n");
+            int conteoMaximo = 1;
+            for (double[] intervalo : intervalosHistograma)
+                conteoMaximo = Math.max(conteoMaximo, (int) intervalo[2]);
+            for (double[] intervalo : intervalosHistograma) {
+                int anchoBarra = (int) Math.round(intervalo[2] / (double) conteoMaximo * 40);
+                reporte.append(String.format(Locale.US, "  [%6.1f - %6.1f) %4d %s\n",
+                        intervalo[0], intervalo[1], (int) intervalo[2], "#".repeat(anchoBarra)));
             }
         }
-        sb.append("\n--- VARIABLES LIKERT (titulados, escala 1-4; negocio 1-3/1-4) ---\n");
-        for (String c : new String[]{"opinion_posgrado_fcyt", "satisfaccion_formacion",
-                "concordancia_formacion_requerimientos", "satisfaccion_negocio", "importancia_formacion_negocio"}) {
-            List<Double> xs = likertCol(TIT, c);
-            if (xs.isEmpty()) { sb.append("\n[").append(c).append("] Sin datos.\n"); continue; }
-            double[] ic = StatsUtil.icMedia(xs);
-            sb.append(String.format(Locale.US, "\n[%s] n=%d media=%s mediana=%s desv=%s IC95%%=[%s,%s]\n",
-                    c, xs.size(), StatsUtil.f2(StatsUtil.media(xs)), StatsUtil.f2(StatsUtil.mediana(xs)),
-                    StatsUtil.f2(StatsUtil.desvEstandar(xs)), StatsUtil.f2(ic[0]), StatsUtil.f2(ic[1])));
+    }
+
+    // describirVariablesLikert(): puntaje medio + IC95 por pregunta Likert.
+    static void describirVariablesLikert(StringBuilder reporte, String[] nombresColumnas) {
+        reporte.append("\n--- VARIABLES LIKERT (titulados, escala 1-4; negocio 1-3/1-4) ---\n");
+        for (String nombreColumna : nombresColumnas) {
+            List<Double> valoresObservados = leerColumnaLikert(titulados, nombreColumna);
+            if (valoresObservados.isEmpty()) {
+                reporte.append("\n[").append(nombreColumna).append("] Sin datos.\n");
+                continue;
+            }
+            double[] intervaloConfianza = StatsUtil.icMedia(valoresObservados);
+            double mediaObservada = StatsUtil.media(valoresObservados);
+            reporte.append(String.format(Locale.US, "\n[%s] n=%d media=%s mediana=%s desv=%s IC95%%=[%s,%s]\n",
+                    nombreColumna, valoresObservados.size(),
+                    StatsUtil.f2(mediaObservada),
+                    StatsUtil.f2(StatsUtil.mediana(valoresObservados)),
+                    StatsUtil.f2(StatsUtil.desvEstandar(valoresObservados)),
+                    StatsUtil.f2(intervaloConfianza[0]), StatsUtil.f2(intervaloConfianza[1])));
+            int maximoEscala = maximoEscalaLikert(nombreColumna);
+            reporte.append(String.format(Locale.US,
+                    "  -> Lectura: %s (%.2f en escala 1-%d); %s; %s.\n",
+                    etiquetaMediaLikert(mediaObservada, maximoEscala), mediaObservada,
+                    maximoEscala,
+                    etiquetaConsenso(StatsUtil.desvEstandar(valoresObservados)),
+                    etiquetaPrecision(intervaloConfianza[0], intervaloConfianza[1], true)));
         }
-        sb.append("\n--- VARIABLES CATEGORICAS (titulados) ---\n");
-        for (String c : new String[]{"genero", "realizo_formacion_complementaria", "nivel_posgrado",
-                "institucion_formacion", "financiamiento_formacion", "interes_posgrado",
-                "area_interes_posgrado", "institucion_futura_posgrado", "situacion_laboral_actual",
-                "tiempo_primer_empleo", "num_empleos_desde_titulacion", "red_contactos"}) {
-            if (!TIT.headers.contains(c)) continue;
-            List<String> v = col(TIT, c);
-            Map<String, Integer> f = StatsUtil.frecuencias(v);
-            int n = v.size();
-            sb.append("\n[").append(c).append("] moda=").append(StatsUtil.moda(f)).append("\n");
-            List<Map.Entry<String, Integer>> e = new ArrayList<>(f.entrySet());
-            e.sort((a, b) -> b.getValue() - a.getValue());
-            for (Map.Entry<String, Integer> en : e) {
-                double p = n == 0 ? 0 : 100.0 * en.getValue() / n;
-                sb.append(String.format(Locale.US, "  %-28s %4d %5.1f%% %s\n",
-                        en.getKey().isEmpty() ? "(VACIO)" : en.getKey(), en.getValue(), p,
-                        StatsUtil.barra(p, 30)));
+    }
+
+    // describirVariablesCategoricas(): tabla de frecuencias ordenada de mayor
+    // a menor con moda (categoría típica), % y barra textual.
+    static void describirVariablesCategoricas(StringBuilder reporte, String[] nombresColumnas) {
+        reporte.append("\n--- VARIABLES CATEGORICAS (titulados) ---\n");
+        for (String nombreColumna : nombresColumnas) {
+            if (!titulados.headers.contains(nombreColumna)) continue;
+            List<String> respuestas = leerColumnaTexto(titulados, nombreColumna);
+            Map<String, Integer> frecuenciaPorCategoria = StatsUtil.frecuencias(respuestas);
+            int totalRespuestas = respuestas.size();
+            reporte.append("\n[").append(nombreColumna).append("] moda=")
+                    .append(StatsUtil.moda(frecuenciaPorCategoria)).append("\n");
+            List<Map.Entry<String, Integer>> categoriasOrdenadas =
+                    new ArrayList<>(frecuenciaPorCategoria.entrySet());
+            categoriasOrdenadas.sort((categoriaA, categoriaB) ->
+                    categoriaB.getValue() - categoriaA.getValue());
+            for (Map.Entry<String, Integer> categoriaConteo : categoriasOrdenadas) {
+                double porcentajeCategoria = totalRespuestas == 0 ? 0
+                        : 100.0 * categoriaConteo.getValue() / totalRespuestas;
+                reporte.append(String.format(Locale.US, "  %-28s %4d %5.1f%% %s\n",
+                        categoriaConteo.getKey().isEmpty() ? "(VACIO)" : categoriaConteo.getKey(),
+                        categoriaConteo.getValue(), porcentajeCategoria,
+                        StatsUtil.barra(porcentajeCategoria, 30)));
             }
         }
-        // Multi-respuesta: aspectos y asignaturas (separador |)
-        sb.append("\n--- PREGUNTAS MULTIPLES (conteo por opcion, separador |) ---\n");
-        for (String c : new String[]{"aspectos_utiles", "aspectos_mejorar", "asignaturas_ventajosas",
-                "asignaturas_inutiles", "medio_convocatoria", "cargos_desempenados"}) {
-            if (!TIT.headers.contains(c) && !EMP.headers.contains(c)) continue;
-            List<String> base = TIT.headers.contains(c) ? col(TIT, c) : col(EMP, c);
-            Map<String, Integer> f = new LinkedHashMap<>();
-            int nResp = 0;
-            for (String v : base) {
-                if (v == null || v.isEmpty()) continue;
-                nResp++;
-                for (String op : v.split("\\|")) {
-                    op = op.trim(); if (op.isEmpty()) continue;
-                    f.put(op, f.getOrDefault(op, 0) + 1);
+    }
+
+    // describirPreguntasMultiples(): las celdas con "A|B|C" se parten por "|"
+    // y cada opción se cuenta por separado (% sobre quienes respondieron,
+    // no sobre la muestra total, porque una persona marca varias).
+    static void describirPreguntasMultiples(StringBuilder reporte, String[] nombresColumnas) {
+        reporte.append("\n--- PREGUNTAS MULTIPLES (conteo por opcion, separador |) ---\n");
+        for (String nombreColumna : nombresColumnas) {
+            if (!titulados.headers.contains(nombreColumna)
+                    && !empleadores.headers.contains(nombreColumna)) continue;
+            List<String> respuestasMultiples = titulados.headers.contains(nombreColumna)
+                    ? leerColumnaTexto(titulados, nombreColumna)
+                    : leerColumnaTexto(empleadores, nombreColumna);
+            Map<String, Integer> conteoPorOpcion = new LinkedHashMap<>();
+            int personasQueRespondieron = 0;
+            for (String respuestaMultiple : respuestasMultiples) {
+                if (respuestaMultiple == null || respuestaMultiple.isEmpty()) continue;
+                personasQueRespondieron++;
+                for (String opcionElegida : respuestaMultiple.split("\\|")) {
+                    opcionElegida = opcionElegida.trim();
+                    if (opcionElegida.isEmpty()) continue;
+                    conteoPorOpcion.put(opcionElegida,
+                            conteoPorOpcion.getOrDefault(opcionElegida, 0) + 1);
                 }
             }
-            sb.append("\n[").append(c).append("] respondieron=").append(nResp).append("\n");
-            List<Map.Entry<String, Integer>> e = new ArrayList<>(f.entrySet());
-            e.sort((a, b) -> b.getValue() - a.getValue());
-            for (Map.Entry<String, Integer> en : e)
-                sb.append(String.format(Locale.US, "  %-30s %4d (%5.1f%% de quienes responden)\n",
-                        en.getKey(), en.getValue(), nResp == 0 ? 0 : 100.0 * en.getValue() / nResp));
+            reporte.append("\n[").append(nombreColumna).append("] respondieron=")
+                    .append(personasQueRespondieron).append("\n");
+            List<Map.Entry<String, Integer>> opcionesOrdenadas =
+                    new ArrayList<>(conteoPorOpcion.entrySet());
+            opcionesOrdenadas.sort((opcionA, opcionB) -> opcionB.getValue() - opcionA.getValue());
+            for (Map.Entry<String, Integer> opcionConteo : opcionesOrdenadas)
+                reporte.append(String.format(Locale.US, "  %-30s %4d (%5.1f%% de quienes responden)\n",
+                        opcionConteo.getKey(), opcionConteo.getValue(),
+                        personasQueRespondieron == 0 ? 0
+                                : 100.0 * opcionConteo.getValue() / personasQueRespondieron));
         }
-        return sb.toString();
     }
 
     // ------------------------------------------------------------------------
@@ -272,134 +531,234 @@ public class Analizador {
     // Chequeo de validación §5: el total de la tabla debe cuadrar con n.
     // ------------------------------------------------------------------------
     static String moduloBivariado() {
-        StringBuilder sb = new StringBuilder(encabezado("REPORTE BIVARIADO (contingencia + chi-cuadrada)"));
-        // Cada fila: {columna A, columna B, etiqueta}. "segmento_antiguedad"
-        // es una columna DERIVADA (ver columnaExtendida), no viene del CSV.
-        String[][] pares = {
-                {"area_interes_posgrado", "financiamiento_formacion", "HU2: area x financiamiento"},
-                {"nivel_posgrado", "institucion_formacion", "HU2/HU3: nivel x institucion"},
-                {"financiamiento_formacion", "nivel_posgrado", "HU3: financiamiento x nivel posgrado"},
-                {"situacion_laboral_actual", "satisfaccion_formacion", "HU1: situacion x satisfaccion"},
-                {"segmento_antiguedad", "interes_posgrado", "HU1: antiguedad x intencion posgrado"},
+        StringBuilder reporte = new StringBuilder(
+                encabezadoReporte("REPORTE BIVARIADO (contingencia + chi-cuadrada)"));
+        reporte.append(guiaLecturaChiCuadrada());
+        // Cada cruce: {columna A, columna B, etiqueta}. "segmento_antiguedad"
+        // es una columna DERIVADA (ver resolverColumna), no viene del CSV.
+        String[][] crucesAAnalizar = {
+                {COL_AREA_INTERES, COL_FINANCIAMIENTO, "HU2: area x financiamiento"},
+                {COL_NIVEL_POSGRADO, "institucion_formacion", "HU2/HU3: nivel x institucion"},
+                {COL_FINANCIAMIENTO, COL_NIVEL_POSGRADO, "HU3: financiamiento x nivel posgrado"},
+                {COL_SITUACION_LABORAL, COL_SATISFACCION_FORMACION, "HU1: situacion x satisfaccion"},
+                {"segmento_antiguedad", COL_INTERES_POSGRADO, "HU1: antiguedad x intencion posgrado"},
         };
-        for (String[] p : pares) {
-            List<String> a = columnaExtendida(p[0]), b = columnaExtendida(p[1]);
-            // filtrar filas donde ambas vacías
-            List<String> fa = new ArrayList<>(), fb = new ArrayList<>();
-            for (int i = 0; i < a.size(); i++) {
-                if (a.get(i).isEmpty() && b.get(i).isEmpty()) continue;
-                fa.add(a.get(i)); fb.add(b.get(i));
-            }
-            sb.append("\n### ").append(p[2]).append(" [").append(p[0]).append(" x ").append(p[1]).append("] n=").append(fa.size()).append("\n");
-            if (fa.isEmpty()) { sb.append("Sin datos.\n"); continue; }
-            StatsUtil.TablaContingencia t = StatsUtil.contingencia(fa, fb);
-            sb.append(String.format("%-24s", ""));
-            for (String c : t.columnas) sb.append(String.format("%-12s", acortar(c, 11)));
-            sb.append("TOTAL\n");
-            int[] totC = new int[t.columnas.size()]; int tot = 0;
-            for (int i = 0; i < t.filas.size(); i++) {
-                sb.append(String.format("%-24s", acortar(t.filas.get(i), 23)));
-                int s = 0;
-                for (int j = 0; j < t.columnas.size(); j++) {
-                    sb.append(String.format("%-12d", t.obs[i][j])); s += t.obs[i][j]; totC[j] += t.obs[i][j];
-                }
-                tot += s; sb.append(s).append("\n");
-            }
-            sb.append(String.format("%-24s", "TOTAL"));
-            for (int c : totC) sb.append(String.format("%-12d", c));
-            sb.append(tot).append("\n");
-            sb.append(String.format(Locale.US, "chi2=%.3f gl=%d p=%.4f => %s\n",
-                    t.chi2, t.gl, t.pValor,
-                    Double.isNaN(t.pValor) ? "no calculable" : (t.pValor < 0.05 ? "DEPENDENCIA significativa (rechaza independencia)" : "INDEPENDIENTES (no hay dependencia significativa)")));
-            // consistencia interna
-            sb.append("Consistencia: total tabla=" + tot + (tot == fa.size() ? " OK" : " DESCUADRE") + "\n");
+        for (String[] cruceActual : crucesAAnalizar) {
+            anexarTablaContingencia(reporte, cruceActual[2], cruceActual[0], cruceActual[1],
+                    resolverColumna(cruceActual[0]), resolverColumna(cruceActual[1]));
         }
-        return sb.toString();
+        return reporte.toString();
     }
 
-    // segmentoDe(): regla de negocio HU1 — madurez profesional por
-    // antigüedad: Junior 0-3 (demanda especialización inicial),
-    // Intermedio 4-7, Consolidado 8+ (mandos). Punto de corte de la guía.
-    static String segmentoDe(double anios) {
-        if (Double.isNaN(anios)) return "";
-        if (anios <= 3) return "JUNIOR_0_3";
-        if (anios <= 7) return "INTERMEDIO_4_7";
+    // anexarTablaContingencia(): imprime UN cruce completo — matriz observada
+    // con totales marginales, estadístico χ², grados de libertad, p-valor y su
+    // lectura (p<0.05 = dependencia). Se descartan los registros donde AMBAS
+    // celdas están vacías (no aportan información al cruce).
+    static void anexarTablaContingencia(StringBuilder reporte, String etiquetaCruce,
+            String nombreColumnaA, String nombreColumnaB,
+            List<String> valoresColumnaA, List<String> valoresColumnaB) {
+        List<String> respuestasFiltradasA = new ArrayList<>();
+        List<String> respuestasFiltradasB = new ArrayList<>();
+        for (int indiceRegistro = 0; indiceRegistro < valoresColumnaA.size(); indiceRegistro++) {
+            if (valoresColumnaA.get(indiceRegistro).isEmpty()
+                    && valoresColumnaB.get(indiceRegistro).isEmpty()) continue;
+            respuestasFiltradasA.add(valoresColumnaA.get(indiceRegistro));
+            respuestasFiltradasB.add(valoresColumnaB.get(indiceRegistro));
+        }
+        reporte.append("\n### ").append(etiquetaCruce).append(" [").append(nombreColumnaA)
+                .append(" x ").append(nombreColumnaB).append("] n=")
+                .append(respuestasFiltradasA.size()).append("\n");
+        if (respuestasFiltradasA.isEmpty()) { reporte.append("Sin datos.\n"); return; }
+        StatsUtil.TablaContingencia pruebaChiCuadrada =
+                StatsUtil.contingencia(respuestasFiltradasA, respuestasFiltradasB);
+        reporte.append(String.format("%-24s", ""));
+        for (String nombreCategoriaColumna : pruebaChiCuadrada.columnas)
+            reporte.append(String.format("%-12s", abreviarTexto(nombreCategoriaColumna, 11)));
+        reporte.append("TOTAL\n");
+        int[] totalesPorColumna = new int[pruebaChiCuadrada.columnas.size()];
+        int totalGeneral = 0;
+        for (int indiceFila = 0; indiceFila < pruebaChiCuadrada.filas.size(); indiceFila++) {
+            reporte.append(String.format("%-24s",
+                    abreviarTexto(pruebaChiCuadrada.filas.get(indiceFila), 23)));
+            int totalFila = 0;
+            for (int indiceColumna = 0;
+                    indiceColumna < pruebaChiCuadrada.columnas.size(); indiceColumna++) {
+                reporte.append(String.format("%-12d",
+                        pruebaChiCuadrada.obs[indiceFila][indiceColumna]));
+                totalFila += pruebaChiCuadrada.obs[indiceFila][indiceColumna];
+                totalesPorColumna[indiceColumna] += pruebaChiCuadrada.obs[indiceFila][indiceColumna];
+            }
+            totalGeneral += totalFila;
+            reporte.append(totalFila).append("\n");
+        }
+        reporte.append(String.format("%-24s", "TOTAL"));
+        for (int totalColumna : totalesPorColumna)
+            reporte.append(String.format("%-12d", totalColumna));
+        reporte.append(totalGeneral).append("\n");
+        reporte.append(String.format(Locale.US, "chi2=%.3f gl=%d p=%.4f => %s\n",
+                pruebaChiCuadrada.chi2, pruebaChiCuadrada.gl, pruebaChiCuadrada.pValor,
+                Double.isNaN(pruebaChiCuadrada.pValor) ? "no calculable"
+                        : (pruebaChiCuadrada.pValor < 0.05
+                                ? "DEPENDENCIA significativa (rechaza independencia)"
+                                : "INDEPENDIENTES (no hay dependencia significativa)")));
+        // consistencia interna
+        reporte.append("Consistencia: total tabla=" + totalGeneral
+                + (totalGeneral == respuestasFiltradasA.size() ? " OK" : " DESCUADRE") + "\n");
+        reporte.append(fraseDependencia(nombreColumnaA, nombreColumnaB,
+                pruebaChiCuadrada.pValor) + "\n");
+    }
+
+    // clasificarPorAntiguedad(): regla de negocio HU1 — madurez profesional:
+    // Junior 0-3 años (demanda especialización inicial), Intermedio 4-7,
+    // Consolidado 8+ (mandos). Puntos de corte fijados por la guía.
+    static String clasificarPorAntiguedad(double aniosVidaProfesional) {
+        if (Double.isNaN(aniosVidaProfesional)) return "";
+        if (aniosVidaProfesional <= 3) return "JUNIOR_0_3";
+        if (aniosVidaProfesional <= 7) return "INTERMEDIO_4_7";
         return "CONSOLIDADO_8_MAS";
     }
 
-    // columnaExtendida(): resuelve una columna por nombre, incluyendo la
+    // resolverColumna(): obtiene una columna por nombre, incluyendo la
     // DERIVADA "segmento_antiguedad" (no existe en el CSV: se calcula de
-    // anios_vida_profesional vía segmentoDe). También busca en empleadores
-    // para cruces mixtos. Vacío "" = no aplicable a ese registro.
-    static List<String> columnaExtendida(String c) {
-        if (c.equals("segmento_antiguedad")) {
-            List<String> out = new ArrayList<>();
-            for (Map<String, String> m : TIT.filas) {
-                try { out.add(segmentoDe(Double.parseDouble(m.getOrDefault("anios_vida_profesional", "").replace(",", ".")))); }
-                catch (Exception e) { out.add(""); }
+    // anios_vida_profesional). También busca en empleadores para cruces
+    // mixtos. Vacío "" = pregunta no aplicable a ese registro.
+    static List<String> resolverColumna(String nombreColumna) {
+        if (nombreColumna.equals("segmento_antiguedad")) {
+            List<String> segmentosCalculados = new ArrayList<>();
+            for (Map<String, String> respuesta : titulados.filas) {
+                try {
+                    segmentosCalculados.add(clasificarPorAntiguedad(Double.parseDouble(
+                            respuesta.getOrDefault(COL_ANIOS_VIDA_PROFESIONAL, "")
+                                    .replace(",", "."))));
+                } catch (Exception errorParseo) { segmentosCalculados.add(""); }
             }
-            return out;
+            return segmentosCalculados;
         }
-        if (TIT.headers.contains(c)) return col(TIT, c);
-        if (EMP.headers.contains(c)) return col(EMP, c);
+        if (titulados.headers.contains(nombreColumna)) return leerColumnaTexto(titulados, nombreColumna);
+        if (empleadores.headers.contains(nombreColumna)) return leerColumnaTexto(empleadores, nombreColumna);
         return new ArrayList<>();
     }
 
-    static String acortar(String s, int n) {
-        if (s == null) return "";
-        return s.length() <= n ? s : s.substring(0, n - 1) + "…";
+    // abreviarTexto(): recorta etiquetas largas para que las tablas quepan
+    // en 80 columnas, marcando el corte con "…".
+    static String abreviarTexto(String textoOriginal, int longitudMaxima) {
+        if (textoOriginal == null) return "";
+        return textoOriginal.length() <= longitudMaxima ? textoOriginal
+                : textoOriginal.substring(0, longitudMaxima - 1) + "…";
     }
 
     // ------------------------------------------------------------------------
     // moduloIntervalos (§4.4): cuantifica la INCERTIDUMBRE de los indicadores.
-    //   Medias (t Student, muestras chicas) y proporciones (Z: inserción,
-    //   intención posgrado, requiere beca). Intervalo estrecho = estimación
-    //   precisa; si el IC de "requiere beca" supera el 50%, urge convenio banca.
+    //   Medias (t Student, ideal con muestras chicas) y proporciones (Z:
+    //   inserción, intención de posgrado, requiere beca). Intervalo estrecho
+    //   = estimación precisa; si el IC de "requiere beca" supera el 50%,
+    //   urge el convenio con la banca (cap.6 del informe).
     // ------------------------------------------------------------------------
     static String moduloIntervalos() {
-        StringBuilder sb = new StringBuilder(encabezado("REPORTE INTERVALOS DE CONFIANZA 95%"));
-        sb.append("\n--- IC para MEDIAS (t Student: x̄ ± t·s/√n) ---\n");
-        for (String c : new String[]{"edad", "anios_vida_profesional", "anios_desempleado"}) {
-            List<Double> xs = num(TIT, c);
-            if (xs.isEmpty()) { sb.append(c).append(": sin datos\n"); continue; }
-            double[] ic = StatsUtil.icMedia(xs);
-            sb.append(String.format(Locale.US, "%-24s n=%d media=%s IC95=[%s , %s]\n",
-                    c, xs.size(), StatsUtil.f2(StatsUtil.media(xs)), StatsUtil.f2(ic[0]), StatsUtil.f2(ic[1])));
+        StringBuilder reporte = new StringBuilder(
+                encabezadoReporte("REPORTE INTERVALOS DE CONFIANZA 95%"));
+        reporte.append(guiaLecturaIntervalos());
+        reporte.append("\n--- IC para MEDIAS (t Student: x̄ ± t·s/√n) ---\n");
+        for (String nombreColumna : new String[]{"edad", COL_ANIOS_VIDA_PROFESIONAL,
+                COL_ANIOS_DESEMPLEO}) {
+            List<Double> valoresObservados = leerColumnaNumerica(titulados, nombreColumna);
+            if (valoresObservados.isEmpty()) {
+                reporte.append(nombreColumna).append(": sin datos\n");
+                continue;
+            }
+            double[] intervaloConfianza = StatsUtil.icMedia(valoresObservados);
+            reporte.append(String.format(Locale.US, "%-24s n=%d media=%s IC95=[%s , %s]\n",
+                    nombreColumna, valoresObservados.size(),
+                    StatsUtil.f2(StatsUtil.media(valoresObservados)),
+                    StatsUtil.f2(intervaloConfianza[0]), StatsUtil.f2(intervaloConfianza[1])));
+            reporte.append(String.format(Locale.US,
+                    "  -> La media real está entre %s y %s años; %s.\n",
+                    StatsUtil.f2(intervaloConfianza[0]), StatsUtil.f2(intervaloConfianza[1]),
+                    etiquetaPrecision(intervaloConfianza[0], intervaloConfianza[1], false)));
         }
-        for (String c : new String[]{"opinion_posgrado_fcyt", "satisfaccion_formacion", "concordancia_formacion_requerimientos"}) {
-            List<Double> xs = likertCol(TIT, c);
-            if (xs.isEmpty()) { sb.append(c).append(": sin datos\n"); continue; }
-            double[] ic = StatsUtil.icMedia(xs);
-            sb.append(String.format(Locale.US, "%-24s n=%d media=%s IC95=[%s , %s]\n",
-                    c, xs.size(), StatsUtil.f2(StatsUtil.media(xs)), StatsUtil.f2(ic[0]), StatsUtil.f2(ic[1])));
+        for (String nombreColumna : new String[]{"opinion_posgrado_fcyt",
+                COL_SATISFACCION_FORMACION, "concordancia_formacion_requerimientos"}) {
+            List<Double> valoresObservados = leerColumnaLikert(titulados, nombreColumna);
+            if (valoresObservados.isEmpty()) {
+                reporte.append(nombreColumna).append(": sin datos\n");
+                continue;
+            }
+            double[] intervaloConfianza = StatsUtil.icMedia(valoresObservados);
+            reporte.append(String.format(Locale.US, "%-24s n=%d media=%s IC95=[%s , %s]\n",
+                    nombreColumna, valoresObservados.size(),
+                    StatsUtil.f2(StatsUtil.media(valoresObservados)),
+                    StatsUtil.f2(intervaloConfianza[0]), StatsUtil.f2(intervaloConfianza[1])));
+            reporte.append(String.format(Locale.US,
+                    "  -> La media real está entre %s y %s puntos (escala 1-%d); %s.\n",
+                    StatsUtil.f2(intervaloConfianza[0]), StatsUtil.f2(intervaloConfianza[1]),
+                    maximoEscalaLikert(nombreColumna),
+                    etiquetaPrecision(intervaloConfianza[0], intervaloConfianza[1], true)));
         }
-        sb.append("\n--- IC para PROPORCIONES (Z: p̂ ± 1.96·√(p̂(1-p̂)/n)) ---\n");
-        int n = TIT.filas.size();
-        double pIns = prop(TIT, "situacion_laboral_actual", v -> !CsvUtil.normalizar(v).contains("NO_TRABAJA") && !v.isEmpty());
-        double pPos = prop(TIT, "interes_posgrado", v -> v.equals("SI"));
-        double pBeca = prop(TIT, "financiamiento_formacion", v -> CsvUtil.normalizar(v).contains("BECA"));
-        double[][] ps = {{pIns, n}, {pPos, n}, {pBeca, n}};
-        String[] nombres = {"tasa_insercion (trabaja o emprende)", "intencion_posgrado (SI)", "requiere_beca (BECA_TOTAL/PARCIAL)"};
-        for (int i = 0; i < ps.length; i++) {
-            double[] ic = StatsUtil.icProporcion(ps[i][0], (int) ps[i][1]);
-            sb.append(String.format(Locale.US, "%-42s p̂=%5.1f%% IC95=[%5.1f%% , %5.1f%%] n=%d\n",
-                    nombres[i], ps[i][0] * 100, ic[0] * 100, ic[1] * 100, (int) ps[i][1]));
+        reporte.append("\n--- IC para PROPORCIONES (Z: p̂ ± 1.96·√(p̂(1-p̂)/n)) ---\n");
+        int totalTitulados = titulados.filas.size();
+        double tasaInsercion = calcularProporcion(titulados, COL_SITUACION_LABORAL,
+                valorCelda -> !CsvUtil.normalizar(valorCelda).contains("NO_TRABAJA")
+                        && !valorCelda.isEmpty());
+        double intencionPosgrado = calcularProporcion(titulados, COL_INTERES_POSGRADO,
+                valorCelda -> valorCelda.equals("SI"));
+        double proporcionRequiereBeca = calcularProporcion(titulados, COL_FINANCIAMIENTO,
+                valorCelda -> CsvUtil.normalizar(valorCelda).contains("BECA"));
+        double[][] proporcionesAReportar = {
+                {tasaInsercion, totalTitulados},
+                {intencionPosgrado, totalTitulados},
+                {proporcionRequiereBeca, totalTitulados}};
+        String[] nombresIndicadores = {"tasa_insercion (trabaja o emprende)",
+                "intencion_posgrado (SI)", "requiere_beca (BECA_TOTAL/PARCIAL)"};
+        for (int indiceIndicador = 0;
+                indiceIndicador < proporcionesAReportar.length; indiceIndicador++) {
+            double[] intervaloConfianza = StatsUtil.icProporcion(
+                    proporcionesAReportar[indiceIndicador][0],
+                    (int) proporcionesAReportar[indiceIndicador][1]);
+            reporte.append(String.format(Locale.US, "%-42s p̂=%5.1f%% IC95=[%5.1f%% , %5.1f%%] n=%d\n",
+                    nombresIndicadores[indiceIndicador],
+                    proporcionesAReportar[indiceIndicador][0] * 100,
+                    intervaloConfianza[0] * 100, intervaloConfianza[1] * 100,
+                    (int) proporcionesAReportar[indiceIndicador][1]));
         }
-        sb.append("\nNota HU1: el tiempo_primer_empleo es categorico; su IC se reporta como proporcion por categoria en univariado.\n");
-        return sb.toString();
+        reporte.append("\nNota HU1: el tiempo_primer_empleo es categorico; "
+                + "su IC se reporta como proporcion por categoria en univariado.\n");
+        // Frases en lenguaje simple: "de cada 100, entre X y Y...".
+        double[] intervaloInsercion =
+                StatsUtil.icProporcion(tasaInsercion, totalTitulados);
+        double[] intervaloIntencion =
+                StatsUtil.icProporcion(intencionPosgrado, totalTitulados);
+        double[] intervaloBeca =
+                StatsUtil.icProporcion(proporcionRequiereBeca, totalTitulados);
+        reporte.append(String.format(Locale.US,
+                "  -> De cada 100 titulados, entre %.0f y %.0f trabajan o emprenden.\n",
+                intervaloInsercion[0] * 100, intervaloInsercion[1] * 100));
+        reporte.append(String.format(Locale.US,
+                "  -> De cada 100 titulados, entre %.0f y %.0f quieren hacer posgrado.\n",
+                intervaloIntencion[0] * 100, intervaloIntencion[1] * 100));
+        reporte.append(String.format(Locale.US,
+                "  -> De cada 100 titulados, entre %.0f y %.0f necesitarían beca.\n",
+                intervaloBeca[0] * 100, intervaloBeca[1] * 100));
+        return reporte.toString();
     }
 
-    interface Pred { boolean test(String v); }
+    // CondicionRespuesta: predicado "¿esta celda cuenta para el indicador?"
+    // (ej. situacion distinta de NO_TRABAJA = titulado insertado).
+    interface CondicionRespuesta { boolean cumple(String valorCelda); }
 
-    static double prop(CsvUtil.Tabla t, String c, Pred p) {
-        if (t.filas.isEmpty() || !t.headers.contains(c)) return Double.NaN;
-        int k = 0, d = 0;
-        for (Map<String, String> m : t.filas) {
-            String v = m.getOrDefault(c, "");
-            if (v.isEmpty()) continue;
-            d++; if (p.test(v)) k++;
+    // calcularProporcion(): casos favorables / casos con respuesta. Las celdas
+    // vacías NO entran al denominador (no-respuesta ≠ respuesta negativa).
+    static double calcularProporcion(CsvUtil.Tabla tabla, String nombreColumna,
+            CondicionRespuesta condicion) {
+        if (tabla.filas.isEmpty() || !tabla.headers.contains(nombreColumna)) return Double.NaN;
+        int casosFavorables = 0, casosConRespuesta = 0;
+        for (Map<String, String> respuesta : tabla.filas) {
+            String valorCelda = respuesta.getOrDefault(nombreColumna, "");
+            if (valorCelda.isEmpty()) continue;
+            casosConRespuesta++;
+            if (condicion.cumple(valorCelda)) casosFavorables++;
         }
-        return d == 0 ? Double.NaN : (double) k / d;
+        return casosConRespuesta == 0 ? Double.NaN
+                : (double) casosFavorables / casosConRespuesta;
     }
 
     // ------------------------------------------------------------------------
@@ -411,98 +770,175 @@ public class Analizador {
     //   (c) minería de texto libre (competencias más mencionadas).
     //   (d) SI el CSV trae columnas extra "importancia_X" + "suficiencia_X"
     //       (extensión HU4: Likert 1-5 por competencia), se calcula la brecha
-    //       real importancia-suficiencia con ranking top-5 + IC. Detección
+    //       real importancia-suficiencia con ranking + IC. Detección
     //       automática: no rompe compatibilidad con la encuesta oficial.
     // ------------------------------------------------------------------------
     static String moduloBrechas() {
-        StringBuilder sb = new StringBuilder(encabezado("REPORTE BRECHAS DE COMPETENCIAS"));
-        sb.append("NOTA: la encuesta de titulados NO incluye Likert hard/soft.\n");
-        sb.append("Se calcula: (a) brecha institucional empleadores = techo(4) - media item;\n");
-        sb.append("(b) brecha empleador-titulado = likert_desempeno(empleador) vs satisfaccion_formacion(titulado);\n");
-        sb.append("(c) ranking de competencias demandadas (texto libre empleadores).\n\n");
-        // (a)
-        List<double[]> rank = new ArrayList<>();
-        List<String> nombres = new ArrayList<>();
-        for (String c : LIKERT_EMP) {
-            if (!EMP.headers.contains(c)) continue;
-            List<Double> xs = likertCol(EMP, c);
-            if (xs.isEmpty()) continue;
-            double media = StatsUtil.media(xs);
-            rank.add(new double[]{media, 4.0 - media, xs.size()});
-            nombres.add(c);
-        }
-        Integer[] idx = new Integer[rank.size()];
-        for (int i = 0; i < idx.length; i++) idx[i] = i;
-        Arrays.sort(idx, (a, b) -> Double.compare(rank.get(b)[1], rank.get(a)[1]));
-        sb.append("--- (a) Ranking brechas institucionales (techo 4 - media) ---\n");
-        int pos = 1;
-        for (int i : idx) {
-            double[] r = rank.get(i);
-            double[] ic = StatsUtil.icMedia(likertCol(EMP, nombres.get(i)));
-            sb.append(String.format(Locale.US, "%d. %-28s media=%s brecha=%s n=%d IC95=[%s,%s] %s\n",
-                    pos++, nombres.get(i), StatsUtil.f2(r[0]), StatsUtil.f2(r[1]), (int) r[2],
-                    StatsUtil.f2(ic[0]), StatsUtil.f2(ic[1]), pos <= 6 ? "<< CRITICA" : ""));
-        }
-        // (b)
-        sb.append("\n--- (b) Brecha empleador-titulado ---\n");
-        List<Double> des = EMP.headers.contains("likert_formacion_desempeno") ? likertCol(EMP, "likert_formacion_desempeno") : new ArrayList<>();
-        List<Double> sat = TIT.headers.contains("satisfaccion_formacion") ? likertCol(TIT, "satisfaccion_formacion") : new ArrayList<>();
-        if (!des.isEmpty() && !sat.isEmpty()) {
-            double brecha = StatsUtil.media(des) - StatsUtil.media(sat);
-            sb.append(String.format(Locale.US,
-                    "Media empleador (formacion->desempeno)=%s vs media titulado (satisfaccion)=%s => brecha=%s\n",
-                    StatsUtil.f2(StatsUtil.media(des)), StatsUtil.f2(StatsUtil.media(sat)), StatsUtil.f2(brecha)));
-            sb.append(brecha > 0 ? "Empleadores valoran mejor el desempeno de lo que el titulado valora su formacion.\n"
-                    : "Titulados mas satisfechos que la valoracion del empleador.\n");
-        } else sb.append("Sin datos suficientes.\n");
-        // (c) tokens de habilidades
-        sb.append("\n--- (c) Competencias mas demandadas (texto libre empleadores) ---\n");
-        Map<String, Integer> tok = new LinkedHashMap<>();
-        for (Map<String, String> m : EMP.filas) {
-            String v = m.getOrDefault("habilidades_competencias_requeridas", "")
-                    + " " + m.getOrDefault("areas_conocimiento_emergentes", "")
-                    + " " + m.getOrDefault("herramientas_tecnologicas", "");
-            for (String w : v.toLowerCase().replaceAll("[^a-záéíóúñ0-9+#. ]", " ").split("\\s+")) {
-                w = w.trim();
-                if (w.length() < 3 || STOP.contains(w)) continue;
-                tok.put(w, tok.getOrDefault(w, 0) + 1);
-            }
-        }
-        List<Map.Entry<String, Integer>> e = new ArrayList<>(tok.entrySet());
-        e.sort((a, b) -> b.getValue() - a.getValue());
-        for (int i = 0; i < Math.min(15, e.size()); i++)
-            sb.append(String.format("  %-18s %d menciones\n", e.get(i).getKey(), e.get(i).getValue()));
-        if (e.isEmpty()) sb.append("  (sin texto libre para analizar)\n");
-        // (d) Extensión HU4: pares importancia_X / suficiencia_X (Likert 1-5).
-        sb.append("\n--- (d) Brechas hard/soft HU4 (solo si el CSV trae importancia_X/suficiencia_X) ---\n");
-        boolean hubo = false;
-        for (String h : TIT.headers) {
-            if (!h.startsWith("importancia_")) continue;
-            String comp = h.substring("importancia_".length());
-            String hs = "suficiencia_" + comp;
-            if (!TIT.headers.contains(hs)) continue;
-            hubo = true;
-            List<Double> brechas = new ArrayList<>();
-            for (Map<String, String> m : TIT.filas) {
-                try {
-                    double im = Double.parseDouble(m.getOrDefault(h, "").replace(",", "."));
-                    double su = Double.parseDouble(m.getOrDefault(hs, "").replace(",", "."));
-                    brechas.add(im - su); // brecha = importancia - suficiencia
-                } catch (Exception ignored) {}
-            }
-            if (brechas.isEmpty()) { sb.append("  " + comp + ": sin datos\n"); continue; }
-            double[] ic = StatsUtil.icMedia(brechas);
-            sb.append(String.format(Locale.US, "  %-24s brecha media=%s IC95=[%s,%s] n=%d%s\n",
-                    comp, StatsUtil.f2(StatsUtil.media(brechas)), StatsUtil.f2(ic[0]), StatsUtil.f2(ic[1]),
-                    brechas.size(), StatsUtil.media(brechas) >= 1.5 ? " << CRITICA" : ""));
-        }
-        if (!hubo) sb.append("  (no detectadas; la encuesta oficial no las incluye — ver NOTA HU4 arriba)\n");
-        return sb.toString();
+        StringBuilder reporte = new StringBuilder(
+                encabezadoReporte("REPORTE BRECHAS DE COMPETENCIAS"));
+        reporte.append(guiaLecturaBrechas());
+        reporte.append("NOTA: la encuesta de titulados NO incluye Likert hard/soft.\n");
+        reporte.append("Se calcula: (a) brecha institucional empleadores = techo(4) - media item;\n");
+        reporte.append("(b) brecha empleador-titulado = likert_desempeno(empleador) vs "
+                + "satisfaccion_formacion(titulado);\n");
+        reporte.append("(c) ranking de competencias demandadas (texto libre empleadores).\n\n");
+        anexarBrechasInstitucionales(reporte);
+        anexarBrechaEmpleadorTitulado(reporte);
+        anexarCompetenciasMasMencionadas(reporte);
+        anexarBrechasHardSoftHU4(reporte);
+        return reporte.toString();
     }
 
-    static final Set<String> STOP = new HashSet<>(Arrays.asList(
-            "los", "las", "una", "uno", "con", "para", "por", "que", "del", "ela", "y", "de", "la",
-            "el", "en", "the", "and", "conocimiento", "area", "areas", "requiere", "requieren"));
+    // (a) Por cada uno de los 10 Likert: brecha = 4 - media. Se ordena de
+    // mayor a menor brecha y se marca "<< CRITICA" a las 5 primeras.
+    static void anexarBrechasInstitucionales(StringBuilder reporte) {
+        List<double[]> brechasInstitucionales = new ArrayList<>(); // {media, brecha, n}
+        List<String> nombresItems = new ArrayList<>();
+        for (String nombreItem : ITEMS_LIKERT_EMPLEADOR) {
+            if (!empleadores.headers.contains(nombreItem)) continue;
+            List<Double> puntajesLikert = leerColumnaLikert(empleadores, nombreItem);
+            if (puntajesLikert.isEmpty()) continue;
+            double puntajeMedio = StatsUtil.media(puntajesLikert);
+            brechasInstitucionales.add(new double[]{puntajeMedio, 4.0 - puntajeMedio,
+                    puntajesLikert.size()});
+            nombresItems.add(nombreItem);
+        }
+        Integer[] indicesOrdenados = new Integer[brechasInstitucionales.size()];
+        for (int indiceItem = 0; indiceItem < indicesOrdenados.length; indiceItem++)
+            indicesOrdenados[indiceItem] = indiceItem;
+        Arrays.sort(indicesOrdenados, (indiceA, indiceB) -> Double.compare(
+                brechasInstitucionales.get(indiceB)[1], brechasInstitucionales.get(indiceA)[1]));
+        reporte.append("--- (a) Ranking brechas institucionales (techo 4 - media) ---\n");
+        int posicionRanking = 1;
+        for (int indiceItem : indicesOrdenados) {
+            double[] datosBrecha = brechasInstitucionales.get(indiceItem);
+            double[] intervaloConfianza =
+                    StatsUtil.icMedia(leerColumnaLikert(empleadores, nombresItems.get(indiceItem)));
+            reporte.append(String.format(Locale.US, "%d. %-28s media=%s brecha=%s n=%d IC95=[%s,%s] %s\n",
+                    posicionRanking++, nombresItems.get(indiceItem),
+                    StatsUtil.f2(datosBrecha[0]), StatsUtil.f2(datosBrecha[1]),
+                    (int) datosBrecha[2],
+                    StatsUtil.f2(intervaloConfianza[0]), StatsUtil.f2(intervaloConfianza[1]),
+                    posicionRanking <= 6 ? "<< CRITICA" : ""));
+        }
+        if (indicesOrdenados.length > 0) {
+            double[] peorBrecha = brechasInstitucionales.get(indicesOrdenados[0]);
+            reporte.append(String.format(Locale.US,
+                    "-> La mayor brecha es '%s' (%.2f puntos bajo el ideal de 4).\n",
+                    nombresItems.get(indicesOrdenados[0]), peorBrecha[1]));
+        }
+    }
+
+    // (b) ¿Coincide lo que el empleador ve con lo que el titulado siente?
+    // brecha = media_desempeño(empleador) - media_satisfacción(titulado).
+    static void anexarBrechaEmpleadorTitulado(StringBuilder reporte) {
+        reporte.append("\n--- (b) Brecha empleador-titulado ---\n");
+        List<Double> desempenoSegunEmpleador = empleadores.headers.contains(
+                "likert_formacion_desempeno")
+                        ? leerColumnaLikert(empleadores, "likert_formacion_desempeno")
+                        : new ArrayList<>();
+        List<Double> satisfaccionDelTitulado = titulados.headers.contains(
+                COL_SATISFACCION_FORMACION)
+                        ? leerColumnaLikert(titulados, COL_SATISFACCION_FORMACION)
+                        : new ArrayList<>();
+        if (!desempenoSegunEmpleador.isEmpty() && !satisfaccionDelTitulado.isEmpty()) {
+            double brechaEmpleadorTitulado = StatsUtil.media(desempenoSegunEmpleador)
+                    - StatsUtil.media(satisfaccionDelTitulado);
+            reporte.append(String.format(Locale.US,
+                    "Media empleador (formacion->desempeno)=%s vs media titulado "
+                            + "(satisfaccion)=%s => brecha=%s\n",
+                    StatsUtil.f2(StatsUtil.media(desempenoSegunEmpleador)),
+                    StatsUtil.f2(StatsUtil.media(satisfaccionDelTitulado)),
+                    StatsUtil.f2(brechaEmpleadorTitulado)));
+            reporte.append(brechaEmpleadorTitulado > 0
+                    ? "Empleadores valoran mejor el desempeno de lo que el titulado valora su formacion.\n"
+                    : "Titulados mas satisfechos que la valoracion del empleador.\n");
+        } else {
+            reporte.append("Sin datos suficientes.\n");
+        }
+    }
+
+    // Palabras vacías del español/inglés que no aportan al ranking de
+    // competencias (artículos, preposiciones, relleno de la pregunta).
+    static final Set<String> PALABRAS_VACIAS = new HashSet<>(Arrays.asList(
+            "los", "las", "una", "uno", "con", "para", "por", "que", "del", "ela", "y", "de",
+            "la", "el", "en", "the", "and", "conocimiento", "area", "areas", "requiere",
+            "requieren"));
+
+    // (c) Minería simple de los 3 textos libres del empleador: se tokeniza a
+    // minúsculas, se filtra ruido y se cuentan menciones (top 15).
+    static void anexarCompetenciasMasMencionadas(StringBuilder reporte) {
+        reporte.append("\n--- (c) Competencias mas demandadas (texto libre empleadores) ---\n");
+        Map<String, Integer> conteoPalabrasClave = new LinkedHashMap<>();
+        for (Map<String, String> respuestaEmpleador : empleadores.filas) {
+            String textoLibreConcatenado =
+                    respuestaEmpleador.getOrDefault("habilidades_competencias_requeridas", "")
+                            + " " + respuestaEmpleador.getOrDefault(
+                                    "areas_conocimiento_emergentes", "")
+                            + " " + respuestaEmpleador.getOrDefault(
+                                    "herramientas_tecnologicas", "");
+            for (String palabraCandidata : textoLibreConcatenado.toLowerCase()
+                    .replaceAll("[^a-záéíóúñ0-9+#. ]", " ").split("\\s+")) {
+                palabraCandidata = palabraCandidata.trim();
+                if (palabraCandidata.length() < 3
+                        || PALABRAS_VACIAS.contains(palabraCandidata)) continue;
+                conteoPalabrasClave.put(palabraCandidata,
+                        conteoPalabrasClave.getOrDefault(palabraCandidata, 0) + 1);
+            }
+        }
+        List<Map.Entry<String, Integer>> palabrasOrdenadas =
+                new ArrayList<>(conteoPalabrasClave.entrySet());
+        palabrasOrdenadas.sort((palabraA, palabraB) ->
+                palabraB.getValue() - palabraA.getValue());
+        for (int indicePalabra = 0;
+                indicePalabra < Math.min(15, palabrasOrdenadas.size()); indicePalabra++)
+            reporte.append(String.format("  %-18s %d menciones\n",
+                    palabrasOrdenadas.get(indicePalabra).getKey(),
+                    palabrasOrdenadas.get(indicePalabra).getValue()));
+        if (palabrasOrdenadas.isEmpty())
+            reporte.append("  (sin texto libre para analizar)\n");
+    }
+
+    // (d) Extensión HU4: por cada par importancia_X/suficiencia_X del CSV,
+    // brecha = importancia - suficiencia, con IC95 y marca "<< CRITICA"
+    // si la brecha media ≥ 1.5 puntos de la escala.
+    static void anexarBrechasHardSoftHU4(StringBuilder reporte) {
+        reporte.append("\n--- (d) Brechas hard/soft HU4 "
+                + "(solo si el CSV trae importancia_X/suficiencia_X) ---\n");
+        boolean seDetectaronPares = false;
+        for (String nombreColumnaImportancia : titulados.headers) {
+            if (!nombreColumnaImportancia.startsWith("importancia_")) continue;
+            String nombreCompetencia =
+                    nombreColumnaImportancia.substring("importancia_".length());
+            String nombreColumnaSuficiencia = "suficiencia_" + nombreCompetencia;
+            if (!titulados.headers.contains(nombreColumnaSuficiencia)) continue;
+            seDetectaronPares = true;
+            List<Double> brechasPorCompetencia = new ArrayList<>();
+            for (Map<String, String> respuestaTitulado : titulados.filas) {
+                try {
+                    double puntajeImportancia = Double.parseDouble(respuestaTitulado
+                            .getOrDefault(nombreColumnaImportancia, "").replace(",", "."));
+                    double puntajeSuficiencia = Double.parseDouble(respuestaTitulado
+                            .getOrDefault(nombreColumnaSuficiencia, "").replace(",", "."));
+                    brechasPorCompetencia.add(puntajeImportancia - puntajeSuficiencia);
+                } catch (Exception valorNoNumerico) {}
+            }
+            if (brechasPorCompetencia.isEmpty()) {
+                reporte.append("  " + nombreCompetencia + ": sin datos\n");
+                continue;
+            }
+            double[] intervaloConfianza = StatsUtil.icMedia(brechasPorCompetencia);
+            reporte.append(String.format(Locale.US,
+                    "  %-24s brecha media=%s IC95=[%s,%s] n=%d%s\n",
+                    nombreCompetencia, StatsUtil.f2(StatsUtil.media(brechasPorCompetencia)),
+                    StatsUtil.f2(intervaloConfianza[0]), StatsUtil.f2(intervaloConfianza[1]),
+                    brechasPorCompetencia.size(),
+                    StatsUtil.media(brechasPorCompetencia) >= 1.5 ? " << CRITICA" : ""));
+        }
+        if (!seDetectaronPares)
+            reporte.append("  (no detectadas; la encuesta oficial no las incluye "
+                    + "— ver NOTA HU4 arriba)\n");
+    }
 
     // ------------------------------------------------------------------------
     // moduloSegmentacion (§4.6 + HU1): parte la muestra por madurez profesional
@@ -513,59 +949,137 @@ public class Analizador {
     // agrupadas): si el 0 queda fuera, la brecha entre segmentos es real.
     // ------------------------------------------------------------------------
     static String moduloSegmentacion() {
-        StringBuilder sb = new StringBuilder(encabezado("REPORTE SEGMENTACION (antiguedad)"));
-        Map<String, List<Map<String, String>>> seg = new LinkedHashMap<>();
-        seg.put("JUNIOR_0_3", new ArrayList<>()); seg.put("INTERMEDIO_4_7", new ArrayList<>()); seg.put("CONSOLIDADO_8_MAS", new ArrayList<>());
-        for (Map<String, String> m : TIT.filas) {
+        StringBuilder reporte = new StringBuilder(
+                encabezadoReporte("REPORTE SEGMENTACION (antiguedad)"));
+        reporte.append(guiaLecturaSegmentos());
+        Map<String, List<Map<String, String>>> tituladosPorSegmento = new LinkedHashMap<>();
+        tituladosPorSegmento.put("JUNIOR_0_3", new ArrayList<>());
+        tituladosPorSegmento.put("INTERMEDIO_4_7", new ArrayList<>());
+        tituladosPorSegmento.put("CONSOLIDADO_8_MAS", new ArrayList<>());
+        for (Map<String, String> respuestaTitulado : titulados.filas) {
             try {
-                double a = Double.parseDouble(m.getOrDefault("anios_vida_profesional", "").replace(",", "."));
-                seg.get(segmentoDe(a)).add(m);
-            } catch (Exception ignored) {}
+                double aniosVidaProfesional = Double.parseDouble(respuestaTitulado
+                        .getOrDefault(COL_ANIOS_VIDA_PROFESIONAL, "").replace(",", "."));
+                tituladosPorSegmento.get(clasificarPorAntiguedad(aniosVidaProfesional))
+                        .add(respuestaTitulado);
+            } catch (Exception antiguedadNoNumerica) {}
         }
-        sb.append(String.format("%-18s %6s %12s %12s %14s\n", "SEGMENTO", "n", "sat_formac", "int_posg_%", "tasa_desemp."));
-        for (Map.Entry<String, List<Map<String, String>>> en : seg.entrySet()) {
-            List<Map<String, String>> g = en.getValue();
-            List<Double> sat = new ArrayList<>(), des = new ArrayList<>();
-            int kPos = 0, dPos = 0;
-            for (Map<String, String> m : g) {
-                double s = StatsUtil.likert4(m.getOrDefault("satisfaccion_formacion", ""));
-                if (!Double.isNaN(s)) sat.add(s);
+        reporte.append(String.format("%-18s %6s %12s %12s %14s\n",
+                "SEGMENTO", "n", "sat_formac", "int_posg_%", "tasa_desemp."));
+        for (Map.Entry<String, List<Map<String, String>>> segmentoActual
+                : tituladosPorSegmento.entrySet()) {
+            List<Map<String, String>> respuestasDelSegmento = segmentoActual.getValue();
+            List<Double> puntajesSatisfaccion = new ArrayList<>();
+            List<Double> tasasDesempleo = new ArrayList<>();
+            int interesadosEnPosgrado = 0, respuestasConIntencionDeclarada = 0;
+            for (Map<String, String> respuestaTitulado : respuestasDelSegmento) {
+                double puntajeSatisfaccion = StatsUtil.likert4(respuestaTitulado
+                        .getOrDefault(COL_SATISFACCION_FORMACION, ""));
+                if (!Double.isNaN(puntajeSatisfaccion))
+                    puntajesSatisfaccion.add(puntajeSatisfaccion);
                 try {
-                    double a = Double.parseDouble(m.getOrDefault("anios_vida_profesional", "0").replace(",", "."));
-                    double d = Double.parseDouble(m.getOrDefault("anios_desempleado", "0").replace(",", "."));
-                    if (a > 0) des.add(d / a);
-                } catch (Exception ignored) {}
-                String ip = m.getOrDefault("interes_posgrado", "");
-                if (!ip.isEmpty()) { dPos++; if (ip.equals("SI")) kPos++; }
+                    double aniosVidaProfesional = Double.parseDouble(respuestaTitulado
+                            .getOrDefault(COL_ANIOS_VIDA_PROFESIONAL, "0").replace(",", "."));
+                    double aniosDesempleado = Double.parseDouble(respuestaTitulado
+                            .getOrDefault(COL_ANIOS_DESEMPLEO, "0").replace(",", "."));
+                    if (aniosVidaProfesional > 0)
+                        tasasDesempleo.add(aniosDesempleado / aniosVidaProfesional);
+                } catch (Exception antiguedadNoNumerica) {}
+                String intencionPosgrado =
+                        respuestaTitulado.getOrDefault(COL_INTERES_POSGRADO, "");
+                if (!intencionPosgrado.isEmpty()) {
+                    respuestasConIntencionDeclarada++;
+                    if (intencionPosgrado.equals("SI")) interesadosEnPosgrado++;
+                }
             }
-            sb.append(String.format(Locale.US, "%-18s %6d %12s %12s %14s\n", en.getKey(), g.size(),
-                    sat.isEmpty() ? "NA" : StatsUtil.f2(StatsUtil.media(sat)),
-                    dPos == 0 ? "NA" : StatsUtil.f1(100.0 * kPos / dPos),
-                    des.isEmpty() ? "NA" : StatsUtil.f2(StatsUtil.media(des))));
+            reporte.append(String.format(Locale.US, "%-18s %6d %12s %12s %14s\n",
+                    segmentoActual.getKey(), respuestasDelSegmento.size(),
+                    puntajesSatisfaccion.isEmpty() ? "NA"
+                            : StatsUtil.f2(StatsUtil.media(puntajesSatisfaccion)),
+                    respuestasConIntencionDeclarada == 0 ? "NA" : StatsUtil.f1(
+                            100.0 * interesadosEnPosgrado / respuestasConIntencionDeclarada),
+                    tasasDesempleo.isEmpty() ? "NA"
+                            : StatsUtil.f2(StatsUtil.media(tasasDesempleo))));
         }
         // IC diferencia de medias Junior vs Consolidado (guía §7.1).
-        List<Double> satJ = satDeSegmento(seg.get("JUNIOR_0_3")), satC = satDeSegmento(seg.get("CONSOLIDADO_8_MAS"));
-        double[] icd = StatsUtil.icDifMedias(satJ, satC);
-        sb.append(String.format(Locale.US,
-                "\nIC95 diferencia satisfaccion (Junior-Consolidado): dif=%s IC=[%s , %s] n1=%d n2=%d => %s\n",
-                StatsUtil.f2(icd[0]), StatsUtil.f2(icd[1]), StatsUtil.f2(icd[2]), satJ.size(), satC.size(),
-                (Double.isNaN(icd[1]) ? "no calculable"
-                        : (icd[1] <= 0 && 0 <= icd[2] ? "sin diferencia significativa (el 0 esta dentro)"
-                        : "DIFERENCIA significativa entre segmentos"))));
-        return sb.toString();
+        List<Double> satisfaccionJuniors =
+                extraerSatisfaccionDelSegmento(tituladosPorSegmento.get("JUNIOR_0_3"));
+        List<Double> satisfaccionConsolidados =
+                extraerSatisfaccionDelSegmento(tituladosPorSegmento.get("CONSOLIDADO_8_MAS"));
+        double[] intervaloDiferencia =
+                StatsUtil.icDifMedias(satisfaccionJuniors, satisfaccionConsolidados);
+        reporte.append(String.format(Locale.US,
+                "\nIC95 diferencia satisfaccion (Junior-Consolidado): dif=%s IC=[%s , %s] "
+                        + "n1=%d n2=%d => %s\n",
+                StatsUtil.f2(intervaloDiferencia[0]), StatsUtil.f2(intervaloDiferencia[1]),
+                StatsUtil.f2(intervaloDiferencia[2]),
+                satisfaccionJuniors.size(), satisfaccionConsolidados.size(),
+                (Double.isNaN(intervaloDiferencia[1]) ? "no calculable"
+                        : (intervaloDiferencia[1] <= 0 && 0 <= intervaloDiferencia[2]
+                                ? "sin diferencia significativa (el 0 esta dentro)"
+                                : "DIFERENCIA significativa entre segmentos"))));
+        boolean hayDiferenciaReal = !Double.isNaN(intervaloDiferencia[1])
+                && !(intervaloDiferencia[1] <= 0 && 0 <= intervaloDiferencia[2]);
+        reporte.append(hayDiferenciaReal
+                ? "En palabras simples: juniors y consolidados están DISTINTO de satisfechos.\n"
+                : "En palabras simples: juniors y consolidados están IGUAL de satisfechos.\n");
+        return reporte.toString();
     }
 
-    // satDeSegmento(): extrae los puntajes Likert de satisfacción de un grupo
-    // ya segmentado (helper del IC de diferencia de medias).
-    static List<Double> satDeSegmento(List<Map<String, String>> g) {
-        List<Double> out = new ArrayList<>();
-        if (g == null) return out;
-        for (Map<String, String> m : g) {
-            double s = StatsUtil.likert4(m.getOrDefault("satisfaccion_formacion", ""));
-            if (!Double.isNaN(s)) out.add(s);
+    // extraerSatisfaccionDelSegmento(): puntajes Likert de satisfacción de un
+    // grupo ya segmentado (insumo del IC de diferencia de medias).
+    static List<Double> extraerSatisfaccionDelSegmento(
+            List<Map<String, String>> respuestasDelSegmento) {
+        List<Double> puntajesSatisfaccion = new ArrayList<>();
+        if (respuestasDelSegmento == null) return puntajesSatisfaccion;
+        for (Map<String, String> respuestaTitulado : respuestasDelSegmento) {
+            double puntajeSatisfaccion = StatsUtil.likert4(
+                    respuestaTitulado.getOrDefault(COL_SATISFACCION_FORMACION, ""));
+            if (!Double.isNaN(puntajeSatisfaccion))
+                puntajesSatisfaccion.add(puntajeSatisfaccion);
         }
-        return out;
+        return puntajesSatisfaccion;
     }
+
+    // ------------------------------------------------------------------------
+    // EscenarioProyectado: resultado de simular UN programa (ej. "maestría en
+    // IA"). proporcionEmpiricaAfin = % real afín al área; demandaMediaProyectada
+    // ± desviación + IC95 = pronóstico; demandasSimuladas = las 1000 demandas
+    // (materia prima del gráfico [7] del dashboard).
+    // ------------------------------------------------------------------------
+    static class EscenarioProyectado {
+        String tituloEscenario;
+        String areaTematica;
+        double proporcionEmpiricaAfin;
+        double demandaMediaProyectada;
+        double desviacionDemanda;
+        double limiteInferiorIC;
+        double limiteSuperiorIC;
+        List<Integer> demandasSimuladas;
+
+        // tamanoCorridaRequerido (§7.2): cuántas encuestas harían falta para
+        // estimar la proporción con error ≤5%: n = Z²·p(1-p)/E². Se usa el
+        // peor caso p=0.5 si la p observada da un n menor (cota conservadora).
+        double tamanoCorridaRequerido() {
+            final double valorZ95 = 1.96, errorMaximo = 0.05;
+            double varianzaProporcion =
+                    Math.max(proporcionEmpiricaAfin * (1 - proporcionEmpiricaAfin),
+                            0.25 * 0.25);
+            return (valorZ95 * valorZ95 * varianzaProporcion)
+                    / (errorMaximo * errorMaximo);
+        }
+
+        // demandasComoDecimales(): el histograma trabaja con doubles; aquí se
+        // convierten las 1000 demandas enteras sin perder información.
+        List<Double> demandasComoDecimales() {
+            List<Double> demandasDecimales = new ArrayList<>();
+            for (int demandaSimulada : demandasSimuladas)
+                demandasDecimales.add((double) demandaSimulada);
+            return demandasDecimales;
+        }
+    }
+
+    static List<EscenarioProyectado> escenariosProyectados = new ArrayList<>();
 
     // ------------------------------------------------------------------------
     // moduloExperimentacion (§4.7 + §6 + §7.2): proyección de demanda Monte
@@ -576,117 +1090,183 @@ public class Analizador {
     // (entusiasmo), resto -> p·0.2 (arrastre). Reporta media/desv/IC95 de la
     // demanda + n de corrida requerido n=Z²p(1-p)/E² (§7.2) + sensibilidad.
     // ------------------------------------------------------------------------
-    // Escenario: resultado de simular UN programa (ej. "maestría en IA").
-    // probBase = proporción empírica afín; media/desv/li/ls = demanda
-    // proyectada y su IC95; muestra = las 1000 demandas (para el gráfico [7]).
-    static class Escenario {
-        String nombre, area; double probBase; double media, desv; double li, ls; List<Integer> muestra;
-    }
-
-    static List<Escenario> escenarios = new ArrayList<>();
-    static List<Integer> ultimaMuestraHist;
-
     static String moduloExperimentacion() {
-        StringBuilder sb = new StringBuilder(encabezado("REPORTE EXPERIMENTACION (Monte Carlo ligero, Math.random)"));
-        sb.append("Metodo: distribucion empirica observada. Sorteo con Math.random(), 1000 repeticiones.\n");
-        sb.append("n_corrida = Z^2·p̂(1-p̂)/E^2 con Z=1.96, E=0.05.\n\n");
-        // p base: interesados por area / total con interes SI
-        Map<String, Integer> fArea = StatsUtil.frecuencias(col(TIT, "area_interes_posgrado"));
-        int nInt = 0;
-        for (Map<String, String> m : TIT.filas) if (m.getOrDefault("interes_posgrado", "").equals("SI")) nInt++;
-        int N = Math.max(TIT.filas.size(), 1);
-        String[][] esc = {
+        StringBuilder reporte = new StringBuilder(encabezadoReporte(
+                "REPORTE EXPERIMENTACION (Monte Carlo ligero, Math.random)"));
+        reporte.append(guiaLecturaMonteCarlo());
+        reporte.append("Metodo: distribucion empirica observada. "
+                + "Sorteo con Math.random(), 1000 repeticiones.\n");
+        reporte.append("n_corrida = Z^2·p̂(1-p̂)/E^2 con Z=1.96, E=0.05.\n\n");
+        int totalTitulados = Math.max(titulados.filas.size(), 1);
+        String[][] escenariosAEvaluar = {
                 {"Abrir maestria en IA", "IA"},
                 {"Abrir especialidad en ciberseguridad", "REDES_SEGURIDAD"},
                 {"Abrir maestria en Ing. Software", "ING_SOFTWARE"},
                 {"Abrir maestria en Base de Datos", "BASE_DATOS"},
                 {"Abrir maestria en Robotica", "ROBOTICA"},
         };
-        for (String[] e : esc) {
-            int k = 0;
-            for (Map<String, String> m : TIT.filas)
-                if (m.getOrDefault("interes_posgrado", "").equals("SI")
-                        && CsvUtil.normalizar(m.getOrDefault("area_interes_posgrado", "")).contains(CsvUtil.normalizar(e[1]))) k++;
-            double p = N == 0 ? 0 : (double) k / N;
-            double nReq = (1.96 * 1.96 * Math.max(p * (1 - p), 0.25 * 0.25)) / (0.05 * 0.05);
-            // Monte Carlo: 1000 repeticiones, cada una sortea N titulados con prob p
-            int REP = 1000;
-            List<Double> demandas = new ArrayList<>();
-            List<Integer> primera = null;
-            for (int r = 0; r < REP; r++) {
-                int d = 0;
-                // sorteo por titulado: conserva heterogeneidad — cada titulado con interes SI y area compatible aporta prob 0.8, resto prob base*0.2
-                for (Map<String, String> m : TIT.filas) {
-                    boolean afin = m.getOrDefault("interes_posgrado", "").equals("SI")
-                            && CsvUtil.normalizar(m.getOrDefault("area_interes_posgrado", "")).contains(CsvUtil.normalizar(e[1]));
-                    double pi = afin ? 0.8 : p * 0.2;
-                    if (Math.random() < pi) d++;
-                }
-                demandas.add((double) d);
-                if (r == 0) { primera = new ArrayList<>(); }
-            }
-            double media = StatsUtil.media(demandas), desv = StatsUtil.desvEstandar(demandas);
-            double[] ic = StatsUtil.icMedia(demandas);
-            Escenario es = new Escenario();
-            es.nombre = e[0]; es.area = e[1]; es.probBase = p; es.media = media; es.desv = desv; es.li = ic[0]; es.ls = ic[1];
-            es.muestra = new ArrayList<>();
-            for (double d : demandas) es.muestra.add((int) Math.round(d));
-            escenarios.add(es);
-            if (escenarios.size() == 1) {
-                ultimaMuestraHist = es.muestra;
-            }
-            sb.append(String.format(Locale.US,
-                    "[%s] area=%s p_empirica=%.3f n_requerido(5%%)=%.0f\n  Demanda simulada (1000 reps): media=%s desv=%s IC95=[%s , %s]\n",
-                    e[0], e[1], p, nReq, StatsUtil.f2(media), StatsUtil.f2(desv), StatsUtil.f2(ic[0]), StatsUtil.f2(ic[1])));
-            List<double[]> h = StatsUtil.histograma(demandas, 10);
-            for (double[] b : h)
-                sb.append(String.format(Locale.US, "    [%5.1f-%5.1f]: %d\n", b[0], b[1], (int) b[2]));
+        for (String[] escenarioActual : escenariosAEvaluar) {
+            EscenarioProyectado resultadoEscenario = simularDemandaDeEscenario(
+                    escenarioActual[0], escenarioActual[1], totalTitulados);
+            escenariosProyectados.add(resultadoEscenario);
+            reporte.append(String.format(Locale.US,
+                    "[%s] area=%s p_empirica=%.3f n_requerido(5%%)=%.0f\n"
+                            + "  Demanda simulada (1000 reps): media=%s desv=%s IC95=[%s , %s]\n",
+                    resultadoEscenario.tituloEscenario, resultadoEscenario.areaTematica,
+                    resultadoEscenario.proporcionEmpiricaAfin,
+                    resultadoEscenario.tamanoCorridaRequerido(),
+                    StatsUtil.f2(resultadoEscenario.demandaMediaProyectada),
+                    StatsUtil.f2(resultadoEscenario.desviacionDemanda),
+                    StatsUtil.f2(resultadoEscenario.limiteInferiorIC),
+                    StatsUtil.f2(resultadoEscenario.limiteSuperiorIC)));
+            List<double[]> intervalosDemanda = StatsUtil.histograma(
+                    resultadoEscenario.demandasComoDecimales(), 10);
+            for (double[] intervalo : intervalosDemanda)
+                reporte.append(String.format(Locale.US, "    [%5.1f-%5.1f]: %d\n",
+                        intervalo[0], intervalo[1], (int) intervalo[2]));
+            reporte.append(String.format(Locale.US,
+                    "  -> En palabras simples: si abres este programa, espera unos %s "
+                            + "inscritos (entre %s y %s).\n",
+                    StatsUtil.f1(resultadoEscenario.demandaMediaProyectada),
+                    StatsUtil.f1(resultadoEscenario.limiteInferiorIC),
+                    StatsUtil.f1(resultadoEscenario.limiteSuperiorIC)));
         }
-        // ---- Análisis de sensibilidad (§5 validación): ¿qué tan estables son
-        // los indicadores si se pierde el 10% de la muestra? Se repite 200
-        // veces: submuestra aleatoria del 90% (Math.random, sin reemplazo) y
-        // se re-miden tasa de inserción, intención de posgrado y antigüedad
-        // media. Se reporta el rango observado: rango estrecho = robusto.
-        sb.append("\n--- Sensibilidad (quitar 10% aleatorio, 200 repeticiones) ---\n");
-        double baseIns = prop(TIT, "situacion_laboral_actual", v -> !CsvUtil.normalizar(v).contains("NO_TRABAJA") && !v.isEmpty());
-        double basePos = prop(TIT, "interes_posgrado", v -> v.equals("SI"));
-        double baseAnt = num(TIT, "anios_vida_profesional").isEmpty() ? Double.NaN : StatsUtil.media(num(TIT, "anios_vida_profesional"));
-        double minI = 2, maxI = -1, minP = 2, maxP = -1, minA = 1e9, maxA = -1e9;
-        for (int b = 0; b < 200; b++) {
-            // Submuestra del 90%: se baraja con sorteos y se toma el 90%.
-            List<Map<String, String>> cop = new ArrayList<>(TIT.filas);
-            for (int i = cop.size() - 1; i > 0; i--) {
-                int j = (int) (Math.random() * (i + 1));
-                Map<String, String> tmp = cop.get(i); cop.set(i, cop.get(j)); cop.set(j, tmp);
-            }
-            int keep = (int) Math.round(cop.size() * 0.9);
-            List<Map<String, String>> sub = cop.subList(0, Math.max(1, keep));
-            CsvUtil.Tabla ts = new CsvUtil.Tabla(); ts.headers = TIT.headers; ts.filas = sub;
-            double pi = prop(ts, "situacion_laboral_actual", v -> !CsvUtil.normalizar(v).contains("NO_TRABAJA") && !v.isEmpty());
-            double pp = prop(ts, "interes_posgrado", v -> v.equals("SI"));
-            List<Double> aa = new ArrayList<>();
-            for (Map<String, String> m : sub) {
-                try { aa.add(Double.parseDouble(m.getOrDefault("anios_vida_profesional", "").replace(",", "."))); }
-                catch (Exception ignored) {}
-            }
-            if (!Double.isNaN(pi)) { minI = Math.min(minI, pi); maxI = Math.max(maxI, pi); }
-            if (!Double.isNaN(pp)) { minP = Math.min(minP, pp); maxP = Math.max(maxP, pp); }
-            if (!aa.isEmpty()) { double ma = StatsUtil.media(aa); minA = Math.min(minA, ma); maxA = Math.max(maxA, ma); }
-        }
-        sb.append(String.format(Locale.US,
-                "  insercion: base=%.1f%% rango90%%=[%.1f%%, %.1f%%] %s\n  intencion posgrado: base=%.1f%% rango90%%=[%.1f%%, %.1f%%] %s\n  antiguedad media: base=%s rango90%%=[%s, %s] %s\n",
-                baseIns * 100, minI * 100, maxI * 100, etiquetaSens((maxI - minI) * 100, 10),
-                basePos * 100, minP * 100, maxP * 100, etiquetaSens((maxP - minP) * 100, 10),
-                StatsUtil.f2(baseAnt), StatsUtil.f2(minA), StatsUtil.f2(maxA),
-                etiquetaSens(maxA - minA, 1.5)));
-        return sb.toString();
+        anexarAnalisisSensibilidad(reporte);
+        return reporte.toString();
     }
 
-    // etiquetaSens(): regla de lectura del análisis de sensibilidad: si el
-    // rango observado cabe en la tolerancia, el indicador es ROBUSTO.
-    static String etiquetaSens(double rango, double tol) {
-        if (Double.isNaN(rango)) return "(sin datos)";
-        return rango <= tol ? "=> ROBUSTO" : "=> SENSIBLE (ampliar muestra)";
+    // simularDemandaDeEscenario(): 1000 veces sortea a cada titulado con
+    // Math.random(): el afín convierte con p=0.8 y el resto con p·0.2.
+    // Cada repetición produce UNA demanda; el conjunto da media/desv/IC95.
+    static EscenarioProyectado simularDemandaDeEscenario(String tituloEscenario,
+            String areaTematica, int totalTitulados) {
+        int tituladosAfines = 0;
+        for (Map<String, String> respuestaTitulado : titulados.filas)
+            if (esTituladoAfinAlArea(respuestaTitulado, areaTematica)) tituladosAfines++;
+        double proporcionEmpirica = (double) tituladosAfines / totalTitulados;
+        final int totalRepeticiones = 1000;
+        List<Double> demandasPorRepeticion = new ArrayList<>();
+        for (int numeroRepeticion = 0;
+                numeroRepeticion < totalRepeticiones; numeroRepeticion++) {
+            int demandaSimulada = 0;
+            for (Map<String, String> respuestaTitulado : titulados.filas) {
+                // Heterogeneidad conservada: el afín pesa 0.8, el resto 0.2·p.
+                double probabilidadConversion = esTituladoAfinAlArea(
+                        respuestaTitulado, areaTematica) ? 0.8 : proporcionEmpirica * 0.2;
+                if (Math.random() < probabilidadConversion) demandaSimulada++;
+            }
+            demandasPorRepeticion.add((double) demandaSimulada);
+        }
+        double[] intervaloDemanda = StatsUtil.icMedia(demandasPorRepeticion);
+        EscenarioProyectado resultadoEscenario = new EscenarioProyectado();
+        resultadoEscenario.tituloEscenario = tituloEscenario;
+        resultadoEscenario.areaTematica = areaTematica;
+        resultadoEscenario.proporcionEmpiricaAfin = proporcionEmpirica;
+        resultadoEscenario.demandaMediaProyectada = StatsUtil.media(demandasPorRepeticion);
+        resultadoEscenario.desviacionDemanda = StatsUtil.desvEstandar(demandasPorRepeticion);
+        resultadoEscenario.limiteInferiorIC = intervaloDemanda[0];
+        resultadoEscenario.limiteSuperiorIC = intervaloDemanda[1];
+        resultadoEscenario.demandasSimuladas = new ArrayList<>();
+        for (double demandaSimulada : demandasPorRepeticion)
+            resultadoEscenario.demandasSimuladas.add((int) Math.round(demandaSimulada));
+        return resultadoEscenario;
+    }
+
+    // esTituladoAfinAlArea(): ¿declaró interés SI y esa área temática?
+    // (comparación normalizada para tolerar tildes/mayúsculas).
+    static boolean esTituladoAfinAlArea(Map<String, String> respuestaTitulado,
+            String areaTematica) {
+        return respuestaTitulado.getOrDefault(COL_INTERES_POSGRADO, "").equals("SI")
+                && CsvUtil.normalizar(respuestaTitulado.getOrDefault(COL_AREA_INTERES, ""))
+                        .contains(CsvUtil.normalizar(areaTematica));
+    }
+
+    // anexarAnalisisSensibilidad (§5 validación): ¿qué tan estables son los
+    // indicadores si se pierde el 10% de la muestra? 200 veces: submuestra
+    // aleatoria del 90% (Math.random, sin reemplazo) y se re-miden inserción,
+    // intención de posgrado y antigüedad media. Rango estrecho = robusto.
+    static void anexarAnalisisSensibilidad(StringBuilder reporte) {
+        reporte.append("\n--- Sensibilidad (quitar 10% aleatorio, 200 repeticiones) ---\n");
+        double insercionBase = calcularProporcion(titulados, COL_SITUACION_LABORAL,
+                valorCelda -> !CsvUtil.normalizar(valorCelda).contains("NO_TRABAJA")
+                        && !valorCelda.isEmpty());
+        double intencionBase = calcularProporcion(titulados, COL_INTERES_POSGRADO,
+                valorCelda -> valorCelda.equals("SI"));
+        List<Double> antiguedadesObservadas =
+                leerColumnaNumerica(titulados, COL_ANIOS_VIDA_PROFESIONAL);
+        double antiguedadBase = antiguedadesObservadas.isEmpty() ? Double.NaN
+                : StatsUtil.media(antiguedadesObservadas);
+        double insercionMinima = 2, insercionMaxima = -1;
+        double intencionMinima = 2, intencionMaxima = -1;
+        double antiguedadMinima = 1e9, antiguedadMaxima = -1e9;
+        for (int numeroSubmuestra = 0; numeroSubmuestra < 200; numeroSubmuestra++) {
+            List<Map<String, String>> submuestraNoventaPorciento =
+                    extraerSubmuestraAleatoriaNoventaPorciento();
+            CsvUtil.Tabla tablaSubmuestra = new CsvUtil.Tabla();
+            tablaSubmuestra.headers = titulados.headers;
+            tablaSubmuestra.filas = submuestraNoventaPorciento;
+            double insercionSubmuestra = calcularProporcion(tablaSubmuestra,
+                    COL_SITUACION_LABORAL, valorCelda ->
+                            !CsvUtil.normalizar(valorCelda).contains("NO_TRABAJA")
+                                    && !valorCelda.isEmpty());
+            double intencionSubmuestra = calcularProporcion(tablaSubmuestra,
+                    COL_INTERES_POSGRADO, valorCelda -> valorCelda.equals("SI"));
+            List<Double> antiguedadesSubmuestra = new ArrayList<>();
+            for (Map<String, String> respuestaSubmuestra : submuestraNoventaPorciento) {
+                try {
+                    antiguedadesSubmuestra.add(Double.parseDouble(respuestaSubmuestra
+                            .getOrDefault(COL_ANIOS_VIDA_PROFESIONAL, "")
+                            .replace(",", ".")));
+                } catch (Exception antiguedadNoNumerica) {}
+            }
+            if (!Double.isNaN(insercionSubmuestra)) {
+                insercionMinima = Math.min(insercionMinima, insercionSubmuestra);
+                insercionMaxima = Math.max(insercionMaxima, insercionSubmuestra);
+            }
+            if (!Double.isNaN(intencionSubmuestra)) {
+                intencionMinima = Math.min(intencionMinima, intencionSubmuestra);
+                intencionMaxima = Math.max(intencionMaxima, intencionSubmuestra);
+            }
+            if (!antiguedadesSubmuestra.isEmpty()) {
+                double antiguedadMediaSubmuestra = StatsUtil.media(antiguedadesSubmuestra);
+                antiguedadMinima = Math.min(antiguedadMinima, antiguedadMediaSubmuestra);
+                antiguedadMaxima = Math.max(antiguedadMaxima, antiguedadMediaSubmuestra);
+            }
+        }
+        reporte.append(String.format(Locale.US,
+                "  insercion: base=%.1f%% rango90%%=[%.1f%%, %.1f%%] %s\n"
+                        + "  intencion posgrado: base=%.1f%% rango90%%=[%.1f%%, %.1f%%] %s\n"
+                        + "  antiguedad media: base=%s rango90%%=[%s, %s] %s\n",
+                insercionBase * 100, insercionMinima * 100, insercionMaxima * 100,
+                evaluarRobustez((insercionMaxima - insercionMinima) * 100, 10),
+                intencionBase * 100, intencionMinima * 100, intencionMaxima * 100,
+                evaluarRobustez((intencionMaxima - intencionMinima) * 100, 10),
+                StatsUtil.f2(antiguedadBase),
+                StatsUtil.f2(antiguedadMinima), StatsUtil.f2(antiguedadMaxima),
+                evaluarRobustez(antiguedadMaxima - antiguedadMinima, 1.5)));
+    }
+
+    // extraerSubmuestraAleatoriaNoventaPorciento(): baraja Fisher-Yates con
+    // Math.random() y conserva el 90% (sin reemplazo = nadie se repite).
+    static List<Map<String, String>> extraerSubmuestraAleatoriaNoventaPorciento() {
+        List<Map<String, String>> copiaMezclable = new ArrayList<>(titulados.filas);
+        for (int indiceMezcla = copiaMezclable.size() - 1; indiceMezcla > 0; indiceMezcla--) {
+            int indiceAleatorio = (int) (Math.random() * (indiceMezcla + 1));
+            Map<String, String> respuestaTemporal = copiaMezclable.get(indiceMezcla);
+            copiaMezclable.set(indiceMezcla, copiaMezclable.get(indiceAleatorio));
+            copiaMezclable.set(indiceAleatorio, respuestaTemporal);
+        }
+        int cantidadConservada =
+                (int) Math.round(copiaMezclable.size() * 0.9);
+        return copiaMezclable.subList(0, Math.max(1, cantidadConservada));
+    }
+
+    // evaluarRobustez(): regla de lectura de sensibilidad — si el rango
+    // observado cabe en la tolerancia, el indicador es ROBUSTO.
+    static String evaluarRobustez(double rangoObservado, double toleranciaAceptada) {
+        if (Double.isNaN(rangoObservado)) return "(sin datos)";
+        return rangoObservado <= toleranciaAceptada ? "=> ROBUSTO"
+                : "=> SENSIBLE (ampliar muestra)";
     }
 
     // ------------------------------------------------------------------------
@@ -697,184 +1277,289 @@ public class Analizador {
     //   coherencia del perfil) y chequeo de cobertura de campo (§5 guía).
     // ------------------------------------------------------------------------
     static String moduloEmpleadores() {
-        StringBuilder sb = new StringBuilder(encabezado("REPORTE EMPLEADORES"));
-        sb.append("\n--- Descriptivo categorico ---\n");
-        for (String c : new String[]{"tipo_organizacion", "tamano_organizacion", "sector_rubro",
-                "contrato_ultimos_5_anios", "posibilidad_futura_contratacion", "nivel_formacion_demanda"}) {
-            if (!EMP.headers.contains(c)) continue;
-            Map<String, Integer> f = StatsUtil.frecuencias(col(EMP, c));
-            sb.append("\n[").append(c).append("] moda=").append(StatsUtil.moda(f)).append("\n");
-            int n = EMP.filas.size();
-            List<Map.Entry<String, Integer>> e = new ArrayList<>(f.entrySet());
-            e.sort((a, b) -> b.getValue() - a.getValue());
-            for (Map.Entry<String, Integer> en : e)
-                sb.append(String.format(Locale.US, "  %-28s %4d %5.1f%% %s\n", acortar(en.getKey(), 27),
-                        en.getValue(), n == 0 ? 0 : 100.0 * en.getValue() / n, StatsUtil.barra(n == 0 ? 0 : 100.0 * en.getValue() / n, 25)));
+        StringBuilder reporte = new StringBuilder(encabezadoReporte("REPORTE EMPLEADORES"));
+        reporte.append(guiaLecturaEmpleadores());
+        reporte.append("\n--- Descriptivo categorico ---\n");
+        for (String nombreColumna : new String[]{"tipo_organizacion", "tamano_organizacion",
+                "sector_rubro", "contrato_ultimos_5_anios", "posibilidad_futura_contratacion",
+                "nivel_formacion_demanda"}) {
+            if (!empleadores.headers.contains(nombreColumna)) continue;
+            Map<String, Integer> frecuenciaPorCategoria =
+                    StatsUtil.frecuencias(leerColumnaTexto(empleadores, nombreColumna));
+            reporte.append("\n[").append(nombreColumna).append("] moda=")
+                    .append(StatsUtil.moda(frecuenciaPorCategoria)).append("\n");
+            int totalEmpleadores = empleadores.filas.size();
+            List<Map.Entry<String, Integer>> categoriasOrdenadas =
+                    new ArrayList<>(frecuenciaPorCategoria.entrySet());
+            categoriasOrdenadas.sort((categoriaA, categoriaB) ->
+                    categoriaB.getValue() - categoriaA.getValue());
+            for (Map.Entry<String, Integer> categoriaConteo : categoriasOrdenadas) {
+                double porcentajeCategoria = totalEmpleadores == 0 ? 0
+                        : 100.0 * categoriaConteo.getValue() / totalEmpleadores;
+                reporte.append(String.format(Locale.US, "  %-28s %4d %5.1f%% %s\n",
+                        abreviarTexto(categoriaConteo.getKey(), 27),
+                        categoriaConteo.getValue(), porcentajeCategoria,
+                        StatsUtil.barra(porcentajeCategoria, 25)));
+            }
         }
-        sb.append("\n--- Cruces ---\n");
-        String[][] pares = {{"sector_rubro", "nivel_formacion_demanda"}, {"tamano_organizacion", "posibilidad_futura_contratacion"}};
-        for (String[] p : pares) {
-            if (!EMP.headers.contains(p[0]) || !EMP.headers.contains(p[1])) continue;
-            StatsUtil.TablaContingencia t = StatsUtil.contingencia(col(EMP, p[0]), col(EMP, p[1]));
-            sb.append(String.format(Locale.US, "\n[%s x %s] chi2=%.3f gl=%d p=%.4f => %s\n",
-                    p[0], p[1], t.chi2, t.gl, t.pValor,
-                    (!Double.isNaN(t.pValor) && t.pValor < 0.05) ? "DEPENDENCIA" : "INDEPENDIENTES"));
+        reporte.append("\n--- Cruces ---\n");
+        anexarResumenCruce(reporte, "sector_rubro", "nivel_formacion_demanda");
+        anexarResumenCruce(reporte, "tamano_organizacion", "posibilidad_futura_contratacion");
+        reporte.append("\n--- 10 Likert institucionales (% acuerdo = 3 o 4) ---\n");
+        for (String nombreColumna : ITEMS_LIKERT_EMPLEADOR) {
+            if (!empleadores.headers.contains(nombreColumna)) continue;
+            List<Double> puntajesLikert = leerColumnaLikert(empleadores, nombreColumna);
+            if (puntajesLikert.isEmpty()) {
+                reporte.append(nombreColumna).append(": sin datos\n");
+                continue;
+            }
+            reporte.append(String.format(Locale.US, "%-28s media=%s acuerdo=%s%% n=%d %s\n",
+                    nombreColumna, StatsUtil.f2(StatsUtil.media(puntajesLikert)),
+                    StatsUtil.f1(StatsUtil.pctAcuerdo(puntajesLikert, 3)),
+                    puntajesLikert.size(),
+                    StatsUtil.barra(StatsUtil.pctAcuerdo(puntajesLikert, 3), 25)));
         }
-        sb.append("\n--- 10 Likert institucionales (% acuerdo = 3 o 4) ---\n");
-        for (String c : LIKERT_EMP) {
-            if (!EMP.headers.contains(c)) continue;
-            List<Double> xs = likertCol(EMP, c);
-            if (xs.isEmpty()) { sb.append(c).append(": sin datos\n"); continue; }
-            sb.append(String.format(Locale.US, "%-28s media=%s acuerdo=%s%% n=%d %s\n", c,
-                    StatsUtil.f2(StatsUtil.media(xs)), StatsUtil.f1(StatsUtil.pctAcuerdo(xs, 3)),
-                    xs.size(), StatsUtil.barra(StatsUtil.pctAcuerdo(xs, 3), 25)));
+        anexarCoberturaDeCampo(reporte);
+        return reporte.toString();
+    }
+
+    // anexarResumenCruce(): versión de UNA LÍNEA del χ² (para empleadores):
+    // solo χ², gl, p y veredicto, sin imprimir la matriz completa.
+    static void anexarResumenCruce(StringBuilder reporte, String nombreColumnaA,
+            String nombreColumnaB) {
+        if (!empleadores.headers.contains(nombreColumnaA)
+                || !empleadores.headers.contains(nombreColumnaB)) return;
+        StatsUtil.TablaContingencia pruebaChiCuadrada = StatsUtil.contingencia(
+                leerColumnaTexto(empleadores, nombreColumnaA),
+                leerColumnaTexto(empleadores, nombreColumnaB));
+        reporte.append(String.format(Locale.US, "\n[%s x %s] chi2=%.3f gl=%d p=%.4f => %s\n",
+                nombreColumnaA, nombreColumnaB, pruebaChiCuadrada.chi2,
+                pruebaChiCuadrada.gl, pruebaChiCuadrada.pValor,
+                (!Double.isNaN(pruebaChiCuadrada.pValor)
+                        && pruebaChiCuadrada.pValor < 0.05) ? "DEPENDENCIA"
+                        : "INDEPENDIENTES"));
+    }
+
+    // anexarCoberturaDeCampo (§5 guía): mínimo 3 empresas de software/TI, al
+    // menos una pública y una privada. Si no se cumple, se ordena encuestar
+    // más empresas con la herramienta Registro antes del informe ARCUSUR.
+    static void anexarCoberturaDeCampo(StringBuilder reporte) {
+        reporte.append("\n--- Cobertura de campo (guia §5) ---\n");
+        Set<String> nombresEmpresasDistintas = new LinkedHashSet<>();
+        boolean hayEmpresaPublica = false, hayEmpresaPrivada = false;
+        for (Map<String, String> respuestaEmpleador : empleadores.filas) {
+            String nombreEmpresa =
+                    respuestaEmpleador.getOrDefault("nombre_empresa", "").trim();
+            if (!nombreEmpresa.isEmpty()) nombresEmpresasDistintas.add(nombreEmpresa);
+            String tipoOrganizacionNormalizado = CsvUtil.normalizar(
+                    respuestaEmpleador.getOrDefault("tipo_organizacion", ""));
+            if (tipoOrganizacionNormalizado.contains("PUBLICO")) hayEmpresaPublica = true;
+            if (tipoOrganizacionNormalizado.contains("PRIVADO")) hayEmpresaPrivada = true;
         }
-        // ---- Cobertura de campo (§5 guía): mínimo 3 empresas de software/TI,
-        // al menos una pública y una privada. Si no se cumple, se advierte
-        // para respaldar la toma de datos en campo.
-        sb.append("\n--- Cobertura de campo (guia §5) ---\n");
-        Set<String> empresas = new LinkedHashSet<>();
-        boolean hayPub = false, hayPriv = false;
-        for (Map<String, String> m : EMP.filas) {
-            String nom = m.getOrDefault("nombre_empresa", "").trim();
-            if (!nom.isEmpty()) empresas.add(nom);
-            String t = CsvUtil.normalizar(m.getOrDefault("tipo_organizacion", ""));
-            if (t.contains("PUBLICO")) hayPub = true;
-            if (t.contains("PRIVADO")) hayPriv = true;
-        }
-        sb.append("Empresas distintas: " + empresas.size() + (empresas.size() >= 3 ? " OK (>=3)" : " INSUFICIENTE (minimo 3)") + "\n");
-        sb.append("Sector publico: " + (hayPub ? "SI OK" : "NO FALTA") + " | Sector privado: " + (hayPriv ? "SI OK" : "NO FALTA") + "\n");
-        if (empresas.size() < 3 || !hayPub || !hayPriv)
-            sb.append("ACCION: use Registro para encuestar mas empresas antes del informe ARCUSUR.\n");
-        return sb.toString();
+        reporte.append("Empresas distintas: " + nombresEmpresasDistintas.size()
+                + (nombresEmpresasDistintas.size() >= 3 ? " OK (>=3)"
+                        : " INSUFICIENTE (minimo 3)") + "\n");
+        reporte.append("Sector publico: " + (hayEmpresaPublica ? "SI OK" : "NO FALTA")
+                + " | Sector privado: " + (hayEmpresaPrivada ? "SI OK" : "NO FALTA") + "\n");
+        if (nombresEmpresasDistintas.size() < 3 || !hayEmpresaPublica || !hayEmpresaPrivada)
+            reporte.append("ACCION: use Registro para encuestar mas empresas "
+                    + "antes del informe ARCUSUR.\n");
     }
 
     // ------------------------------------------------------------------------
-    // exportarCsvs (§4.9 + HU5): artefactos REUTILIZABLES para Excel/otros.
+    // exportarArchivosCsv (§4.9 + HU5): artefactos REUTILIZABLES en Excel.
     //   matriz_contingencia.csv (área×financiamiento, cruza con HU2/HU3),
-    //   histogramas.csv (datos crudos del gráfico [1]),
+    //   histogramas.csv (datos crudos del gráfico [1] del dashboard),
     //   datos_limpios_*.csv (trazabilidad: lo que entró vs lo analizado).
-    // generarDashboard (§4.10 + HU5): escribe dashboard.html AUTOCONTENIDO
-    //   (CSS+JS+datos JSON embebidos, canvas puro, cero dependencias): KPIs,
-    //   9 gráficos (histograma, barras, torta, heatmap, radar, tabla χ²,
-    //   simulación, ranking, Likert) + recomendaciones con reglas if-then.
     // ------------------------------------------------------------------------
-    static void exportarCsvs() throws IOException {
+    static void exportarArchivosCsv() throws IOException {
         // matriz_contingencia.csv (area x financiamiento)
-        StatsUtil.TablaContingencia t = StatsUtil.contingencia(
-                columnaExtendida("area_interes_posgrado"), columnaExtendida("financiamiento_formacion"));
-        List<String> h = new ArrayList<>(); h.add("area\\financiamiento"); h.addAll(t.columnas); h.add("TOTAL");
-        List<List<String>> filas = new ArrayList<>();
-        for (int i = 0; i < t.filas.size(); i++) {
-            List<String> f = new ArrayList<>(); f.add(t.filas.get(i));
-            int s = 0; for (int j = 0; j < t.columnas.size(); j++) { f.add(String.valueOf(t.obs[i][j])); s += t.obs[i][j]; }
-            f.add(String.valueOf(s)); filas.add(f);
+        StatsUtil.TablaContingencia tablaAreaVsFinanciamiento = StatsUtil.contingencia(
+                resolverColumna(COL_AREA_INTERES), resolverColumna(COL_FINANCIAMIENTO));
+        List<String> encabezadosMatriz = new ArrayList<>();
+        encabezadosMatriz.add("area\\financiamiento");
+        encabezadosMatriz.addAll(tablaAreaVsFinanciamiento.columnas);
+        encabezadosMatriz.add("TOTAL");
+        List<List<String>> filasMatriz = new ArrayList<>();
+        for (int indiceFila = 0;
+                indiceFila < tablaAreaVsFinanciamiento.filas.size(); indiceFila++) {
+            List<String> filaMatriz = new ArrayList<>();
+            filaMatriz.add(tablaAreaVsFinanciamiento.filas.get(indiceFila));
+            int totalFila = 0;
+            for (int indiceColumna = 0;
+                    indiceColumna < tablaAreaVsFinanciamiento.columnas.size();
+                    indiceColumna++) {
+                filaMatriz.add(String.valueOf(
+                        tablaAreaVsFinanciamiento.obs[indiceFila][indiceColumna]));
+                totalFila += tablaAreaVsFinanciamiento.obs[indiceFila][indiceColumna];
+            }
+            filaMatriz.add(String.valueOf(totalFila));
+            filasMatriz.add(filaMatriz);
         }
-        CsvUtil.escribir(salida.resolve("matriz_contingencia.csv"), h, filas);
+        CsvUtil.escribir(carpetaSalida.resolve("matriz_contingencia.csv"),
+                encabezadosMatriz, filasMatriz);
         // histogramas.csv (anios_vida_profesional)
-        List<double[]> hist = StatsUtil.histograma(num(TIT, "anios_vida_profesional"), 10);
-        List<List<String>> fh = new ArrayList<>();
-        for (double[] b : hist) fh.add(Arrays.asList(StatsUtil.f2(b[0]), StatsUtil.f2(b[1]), String.valueOf((int) b[2])));
-        CsvUtil.escribir(salida.resolve("histogramas.csv"),
-                Arrays.asList("lim_inf", "lim_sup", "frecuencia"), fh);
-        // datos_limpios
-        CsvUtil.escribir(salida.resolve("datos_limpios_titulados.csv"), TIT.headers,
-                aFilas(TIT));
-        CsvUtil.escribir(salida.resolve("datos_limpios_empleadores.csv"), EMP.headers,
-                aFilas(EMP));
+        List<double[]> intervalosAntiguedad = StatsUtil.histograma(
+                leerColumnaNumerica(titulados, COL_ANIOS_VIDA_PROFESIONAL), 10);
+        List<List<String>> filasHistograma = new ArrayList<>();
+        for (double[] intervalo : intervalosAntiguedad)
+            filasHistograma.add(Arrays.asList(StatsUtil.f2(intervalo[0]),
+                    StatsUtil.f2(intervalo[1]), String.valueOf((int) intervalo[2])));
+        CsvUtil.escribir(carpetaSalida.resolve("histogramas.csv"),
+                Arrays.asList("lim_inf", "lim_sup", "frecuencia"), filasHistograma);
+        // datos_limpios (foto exacta de lo que se analizó)
+        CsvUtil.escribir(carpetaSalida.resolve("datos_limpios_titulados.csv"),
+                titulados.headers, convertirTablaAFilas(titulados));
+        CsvUtil.escribir(carpetaSalida.resolve("datos_limpios_empleadores.csv"),
+                empleadores.headers, convertirTablaAFilas(empleadores));
         System.out.println("  -> matriz_contingencia.csv, histogramas.csv, datos_limpios_*.csv");
     }
 
-    static List<List<String>> aFilas(CsvUtil.Tabla t) {
-        List<List<String>> out = new ArrayList<>();
-        for (Map<String, String> m : t.filas) {
-            List<String> f = new ArrayList<>();
-            for (String c : t.headers) f.add(m.getOrDefault(c, ""));
-            out.add(f);
+    // convertirTablaAFilas(): de Map<columna,valor> a lista ordenada según el
+    // encabezado (el formato que CsvUtil.escribir espera).
+    static List<List<String>> convertirTablaAFilas(CsvUtil.Tabla tabla) {
+        List<List<String>> filasTexto = new ArrayList<>();
+        for (Map<String, String> respuesta : tabla.filas) {
+            List<String> filaTexto = new ArrayList<>();
+            for (String nombreColumna : tabla.headers)
+                filaTexto.add(respuesta.getOrDefault(nombreColumna, ""));
+            filasTexto.add(filaTexto);
         }
-        return out;
+        return filasTexto;
     }
 
-    // dashboardConsola (§4.10): resumen ejecutivo en consola (KPIs + top
-    // hallazgos). Es lo primero que lee la Dirección de Carrera.
-    // recomendaciones(): reglas if-then sobre los datos (panel [10] del
-    // dashboard e insumo del cap.6 del informe). Cada regla cruza un umbral
-    // con su acción (ej. recursos propios >50% -> convenio banca).
-    static void dashboardConsola() {
-        int n = TIT.filas.size(), m = EMP.filas.size();
-        double pIns = prop(TIT, "situacion_laboral_actual", v -> !CsvUtil.normalizar(v).contains("NO_TRABAJA") && !v.isEmpty());
-        double pPos = prop(TIT, "interes_posgrado", v -> v.equals("SI"));
+    // mostrarResumenEjecutivo (§4.10): KPIs en consola — lo primero que lee
+    // la Dirección de Carrera antes de abrir el dashboard.
+    static void mostrarResumenEjecutivo() {
+        int totalTitulados = titulados.filas.size(), totalEmpleadores = empleadores.filas.size();
+        double tasaInsercion = calcularProporcion(titulados, COL_SITUACION_LABORAL,
+                valorCelda -> !CsvUtil.normalizar(valorCelda).contains("NO_TRABAJA")
+                        && !valorCelda.isEmpty());
+        double intencionPosgrado = calcularProporcion(titulados, COL_INTERES_POSGRADO,
+                valorCelda -> valorCelda.equals("SI"));
+        List<Double> antiguedadesObservadas =
+                leerColumnaNumerica(titulados, COL_ANIOS_VIDA_PROFESIONAL);
         System.out.println("\n========== DASHBOARD (resumen ejecutivo) ==========");
-        System.out.println("Titulados N=" + n + " | Empleadores M=" + m);
-        System.out.println(String.format(Locale.US, "Tasa insercion: %s%% | Intencion posgrado: %s%% | Antiguedad media: %s anios",
-                Double.isNaN(pIns) ? "NA" : StatsUtil.f1(pIns * 100),
-                Double.isNaN(pPos) ? "NA" : StatsUtil.f1(pPos * 100),
-                num(TIT, "anios_vida_profesional").isEmpty() ? "NA" : StatsUtil.f2(StatsUtil.media(num(TIT, "anios_vida_profesional")))));
+        System.out.println("Titulados N=" + totalTitulados + " | Empleadores M=" + totalEmpleadores);
+        System.out.println(String.format(Locale.US,
+                "Tasa insercion: %s%% | Intencion posgrado: %s%% | Antiguedad media: %s anios",
+                Double.isNaN(tasaInsercion) ? "NA" : StatsUtil.f1(tasaInsercion * 100),
+                Double.isNaN(intencionPosgrado) ? "NA" : StatsUtil.f1(intencionPosgrado * 100),
+                antiguedadesObservadas.isEmpty() ? "NA"
+                        : StatsUtil.f2(StatsUtil.media(antiguedadesObservadas))));
         System.out.println("Top hallazgos y recomendaciones: ver panel #10 del dashboard.html");
-        for (String r : recomendaciones()) System.out.println("  - " + r);
+        for (String recomendacion : generarRecomendacionesAutomaticas())
+            System.out.println("  - " + recomendacion);
     }
 
-    static List<String> recomendaciones() {
-        List<String> rec = new ArrayList<>();
-        Map<String, Integer> fArea = StatsUtil.frecuencias(col(TIT, "area_interes_posgrado"));
-        int n = Math.max(1, TIT.filas.size());
-        double pIA = fArea.getOrDefault("IA", 0) * 100.0 / n;
-        if (pIA > 30) rec.add("Alta demanda en IA (" + StatsUtil.f1(pIA) + "%) -> abrir maestria modular en IA.");
-        double pProp = prop(TIT, "financiamiento_formacion", v -> CsvUtil.normalizar(v).contains("PROPIO"));
-        if (!Double.isNaN(pProp) && pProp > 0.5) rec.add("Mas del 50% usa recursos propios -> convenio con banca / becas parciales.");
-        List<Double> cons = EMP.headers.contains("likert_consulta_regular") ? likertCol(EMP, "likert_consulta_regular") : new ArrayList<>();
-        if (!cons.isEmpty() && StatsUtil.pctAcuerdo(cons, 3) < 50) rec.add("Consulta al empleador baja -> activar observatorio permanente.");
-        List<Double> sat = likertCol(TIT, "satisfaccion_formacion");
-        if (!sat.isEmpty() && StatsUtil.media(sat) < 3.0) rec.add("Satisfaccion < 3.0 -> revisar malla curricular.");
-        Map<String, Integer> fT = StatsUtil.frecuencias(col(TIT, "tiempo_primer_empleo"));
-        int mas6 = fT.getOrDefault("8_12_MESES", 0) + fT.getOrDefault("MAS_12_MESES", 0);
-        if (mas6 * 1.0 / n > 0.25) rec.add("Insercion lenta (>25% tarda 8+ meses) -> fortalecer bolsa de trabajo.");
-        if (rec.isEmpty()) rec.add("Muestra estable: mantener oferta actual y monitorear anualmente.");
-        return rec;
+    // generarRecomendacionesAutomaticas(): reglas if-then sobre los datos
+    // (panel [10] del dashboard e insumo del cap.6 del informe). Cada regla
+    // cruza un umbral con su acción (ej. recursos propios >50% -> banca).
+    static List<String> generarRecomendacionesAutomaticas() {
+        List<String> recomendaciones = new ArrayList<>();
+        Map<String, Integer> frecuenciaPorArea =
+                StatsUtil.frecuencias(leerColumnaTexto(titulados, COL_AREA_INTERES));
+        int totalTitulados = Math.max(1, titulados.filas.size());
+        double porcentajeInteresIA =
+                frecuenciaPorArea.getOrDefault("IA", 0) * 100.0 / totalTitulados;
+        if (porcentajeInteresIA > 30)
+            recomendaciones.add("Alta demanda en IA (" + StatsUtil.f1(porcentajeInteresIA)
+                    + "%) -> abrir maestria modular en IA.");
+        double proporcionRecursosPropios = calcularProporcion(titulados, COL_FINANCIAMIENTO,
+                valorCelda -> CsvUtil.normalizar(valorCelda).contains("PROPIO"));
+        if (!Double.isNaN(proporcionRecursosPropios) && proporcionRecursosPropios > 0.5)
+            recomendaciones.add("Mas del 50% usa recursos propios -> "
+                    + "convenio con banca / becas parciales.");
+        List<Double> consultaAlEmpleador = empleadores.headers.contains(
+                "likert_consulta_regular")
+                        ? leerColumnaLikert(empleadores, "likert_consulta_regular")
+                        : new ArrayList<>();
+        if (!consultaAlEmpleador.isEmpty()
+                && StatsUtil.pctAcuerdo(consultaAlEmpleador, 3) < 50)
+            recomendaciones.add("Consulta al empleador baja -> activar observatorio permanente.");
+        List<Double> satisfaccionFormacion =
+                leerColumnaLikert(titulados, COL_SATISFACCION_FORMACION);
+        if (!satisfaccionFormacion.isEmpty() && StatsUtil.media(satisfaccionFormacion) < 3.0)
+            recomendaciones.add("Satisfaccion < 3.0 -> revisar malla curricular.");
+        Map<String, Integer> frecuenciaTiempoPrimerEmpleo = StatsUtil.frecuencias(
+                leerColumnaTexto(titulados, "tiempo_primer_empleo"));
+        int tardanOchoMesesOMas = frecuenciaTiempoPrimerEmpleo.getOrDefault("8_12_MESES", 0)
+                + frecuenciaTiempoPrimerEmpleo.getOrDefault("MAS_12_MESES", 0);
+        if (tardanOchoMesesOMas * 1.0 / totalTitulados > 0.25)
+            recomendaciones.add("Insercion lenta (>25% tarda 8+ meses) -> "
+                    + "fortalecer bolsa de trabajo.");
+        if (recomendaciones.isEmpty())
+            recomendaciones.add(
+                    "Muestra estable: mantener oferta actual y monitorear anualmente.");
+        return recomendaciones;
     }
 
-    // ---- HTML autocontenido (CSS + canvas puro + JSON embebido) ----
-    // generarDashboard(): serializa los resultados a JSON (helpers aJson*),
-    // los incrusta en <script> junto al dibujado canvas y escribe el .html.
-    // Abrir el archivo en cualquier navegador = dashboard sin servidor.
-    static void generarDashboard() throws IOException {
-        Map<String, Integer> fArea = StatsUtil.frecuencias(col(TIT, "area_interes_posgrado"));
-        Map<String, Integer> fFin = StatsUtil.frecuencias(col(TIT, "financiamiento_formacion"));
-        List<double[]> hist = StatsUtil.histograma(num(TIT, "anios_vida_profesional"), 10);
-        StatsUtil.TablaContingencia heat = StatsUtil.contingencia(
-                columnaExtendida("area_interes_posgrado"), columnaExtendida("institucion_futura_posgrado"));
-        // radar: medias 10 likert empleadores
-        List<String> radarLab = new ArrayList<>(); List<Double> radarVal = new ArrayList<>();
-        for (String c : LIKERT_EMP) {
-            if (!EMP.headers.contains(c)) continue;
-            List<Double> xs = likertCol(EMP, c);
-            if (xs.isEmpty()) continue;
-            radarLab.add(c.replace("likert_", ""));
-            radarVal.add(StatsUtil.media(xs));
+    // ------------------------------------------------------------------------
+    // generarDashboardHtml (§4.10 + HU5): escribe dashboard.html AUTOCONTENIDO
+    // (CSS + JS + datos JSON embebidos, dibujo con canvas puro, cero
+    // dependencias). Contenido: 4 KPIs, 9 gráficos (histograma, barras, torta,
+    // heatmap, radar, tabla χ², simulación, ranking, Likert) + panel [10] de
+    // recomendaciones. Abrirlo en cualquier navegador = dashboard sin servidor.
+    // ------------------------------------------------------------------------
+    static void generarDashboardHtml() throws IOException {
+        Map<String, Integer> frecuenciaPorArea =
+                StatsUtil.frecuencias(leerColumnaTexto(titulados, COL_AREA_INTERES));
+        Map<String, Integer> frecuenciaFinanciamiento =
+                StatsUtil.frecuencias(leerColumnaTexto(titulados, COL_FINANCIAMIENTO));
+        List<double[]> intervalosAntiguedad = StatsUtil.histograma(
+                leerColumnaNumerica(titulados, COL_ANIOS_VIDA_PROFESIONAL), 10);
+        StatsUtil.TablaContingencia mapaCalorAreaInstitucion = StatsUtil.contingencia(
+                resolverColumna(COL_AREA_INTERES),
+                resolverColumna("institucion_futura_posgrado"));
+        // radar: puntaje medio de cada uno de los 10 Likert del empleador
+        List<String> etiquetasRadar = new ArrayList<>();
+        List<Double> valoresRadar = new ArrayList<>();
+        for (String nombreItemLikert : ITEMS_LIKERT_EMPLEADOR) {
+            if (!empleadores.headers.contains(nombreItemLikert)) continue;
+            List<Double> puntajesLikert = leerColumnaLikert(empleadores, nombreItemLikert);
+            if (puntajesLikert.isEmpty()) continue;
+            etiquetasRadar.add(nombreItemLikert.replace("likert_", ""));
+            valoresRadar.add(StatsUtil.media(puntajesLikert));
         }
-        Map<String, Integer> fVent = contarOpciones("asignaturas_ventajosas");
-        Map<String, Integer> fInut = contarOpciones("asignaturas_inutiles");
-        List<Double> satMed = num(TIT, "anios_vida_profesional");
+        Map<String, Integer> asignaturasVentajosas =
+                contarRespuestasMultiples("asignaturas_ventajosas");
+        Map<String, Integer> asignaturasInutiles =
+                contarRespuestasMultiples("asignaturas_inutiles");
 
-        String json = "{"
-                + "\"n\":" + TIT.filas.size() + ",\"m\":" + EMP.filas.size() + ","
-                + "\"hist\":" + aJsonHist(hist) + ","
-                + "\"areas\":" + aJsonFrec(fArea) + ","
-                + "\"fin\":" + aJsonFrec(fFin) + ","
-                + "\"heat\":{\"filas\":" + aJsonStr(heat.filas) + ",\"cols\":" + aJsonStr(heat.columnas)
-                + ",\"obs\":" + aJsonMat(heat.obs) + ",\"chi2\":" + round3(heat.chi2) + ",\"gl\":" + heat.gl
-                + ",\"p\":" + (Double.isNaN(heat.pValor) ? "null" : round3(heat.pValor)) + "},"
-                + "\"radarLab\":" + aJsonStr(radarLab) + ",\"radarVal\":" + aJsonNum(radarVal) + ","
-                + "\"sim\":" + aJsonNumInt(escenarios.isEmpty() ? new ArrayList<>() : escenarios.get(0).muestra) + ","
-                + "\"simMedia\":" + (escenarios.isEmpty() ? "0" : StatsUtil.f2(escenarios.get(0).media)) + ","
-                + "\"vent\":" + aJsonFrec(fVent) + ",\"inut\":" + aJsonFrec(fInut) + ","
-                + "\"likert\":" + aJsonLikert()
+        String datosJsonParaGraficos = "{"
+                + "\"n\":" + titulados.filas.size() + ",\"m\":" + empleadores.filas.size() + ","
+                + "\"hist\":" + jsonDeHistograma(intervalosAntiguedad) + ","
+                + "\"areas\":" + jsonDeFrecuencias(frecuenciaPorArea) + ","
+                + "\"fin\":" + jsonDeFrecuencias(frecuenciaFinanciamiento) + ","
+                + "\"heat\":{\"filas\":" + jsonDeTextos(mapaCalorAreaInstitucion.filas)
+                + ",\"cols\":" + jsonDeTextos(mapaCalorAreaInstitucion.columnas)
+                + ",\"obs\":" + jsonDeMatriz(mapaCalorAreaInstitucion.obs)
+                + ",\"chi2\":" + conTresDecimales(mapaCalorAreaInstitucion.chi2)
+                + ",\"gl\":" + mapaCalorAreaInstitucion.gl
+                + ",\"p\":" + (Double.isNaN(mapaCalorAreaInstitucion.pValor) ? "null"
+                        : conTresDecimales(mapaCalorAreaInstitucion.pValor)) + "},"
+                + "\"radarLab\":" + jsonDeTextos(etiquetasRadar)
+                + ",\"radarVal\":" + jsonDeNumeros(valoresRadar) + ","
+                + "\"sim\":" + jsonDeEnteros(escenariosProyectados.isEmpty() ? new ArrayList<>()
+                        : escenariosProyectados.get(0).demandasSimuladas) + ","
+                + "\"simMedia\":" + (escenariosProyectados.isEmpty() ? "0"
+                        : StatsUtil.f2(escenariosProyectados.get(0).demandaMediaProyectada))
+                + ","
+                + "\"vent\":" + jsonDeFrecuencias(asignaturasVentajosas)
+                + ",\"inut\":" + jsonDeFrecuencias(asignaturasInutiles) + ","
+                + "\"likert\":" + jsonDeAcuerdoLikert()
                 + "}";
 
-        String recs = "";
-        for (String r : recomendaciones()) recs += "<li>" + escHtml(r) + "</li>\n";
+        String listaRecomendacionesHtml = "";
+        for (String recomendacion : generarRecomendacionesAutomaticas())
+            listaRecomendacionesHtml += "<li>" + escaparHtml(recomendacion) + "</li>\n";
 
-        String html = "<!DOCTYPE html><html lang='es'><head><meta charset='utf-8'>"
+        String tituloPrimerEscenario = escenariosProyectados.isEmpty() ? ""
+                : escaparHtml(escenariosProyectados.get(0).tituloEscenario);
+        String mediaPrimerEscenario = escenariosProyectados.isEmpty() ? ""
+                : StatsUtil.f2(escenariosProyectados.get(0).demandaMediaProyectada);
+
+        String paginaDashboard = "<!DOCTYPE html><html lang='es'><head><meta charset='utf-8'>"
                 + "<meta name='viewport' content='width=device-width,initial-scale=1'>"
                 + "<title>Dashboard — Mercado Titulados Ing. Sistemas UMSS</title>"
                 + "<style>body{font-family:Arial,sans-serif;background:#f2f4f8;margin:0;color:#1c2733}"
@@ -891,28 +1576,76 @@ public class Analizador {
                 + "table{border-collapse:collapse;width:100%;font-size:13px}td,th{border:1px solid #cbd5e1;padding:5px 8px;text-align:center}"
                 + "th{background:#0b3d62;color:#fff}h2{font-size:18px;margin:4px 0 10px}</style></head><body>"
                 + "<header><h1>Dashboard — Análisis de Mercado Titulados Ing. Sistemas UMSS</h1>"
-                + "<div>Fuente: titulados.csv (N=" + TIT.filas.size() + ") + empleadores.csv (M=" + EMP.filas.size()
+                + "<div>Fuente: titulados.csv (N=" + titulados.filas.size()
+                + ") + empleadores.csv (M=" + empleadores.filas.size()
                 + ") | Fecha: " + LocalDate.now() + "</div></header><div class='wrap'>"
                 + "<nav><a href='#c1'>[1] Antigüedad</a><a href='#c2'>[2] Áreas</a><a href='#c3'>[3] Financiamiento</a>"
                 + "<a href='#c4'>[4] Calor</a><a href='#c5'>[5] Radar</a><a href='#t6'>[6] χ²</a>"
                 + "<a href='#c7'>[7] Simulación</a><a href='#c8'>[8] Asignaturas</a><a href='#c9'>[9] Empleadores</a></nav>"
                 + "<div id='tip'></div>"
-                + "<div class='kpis'>" + kpisHtml() + "</div>"
+                + "<div class='kpis'>" + tarjetasKpiHtml() + "</div>"
                 + "<div class='card'><h2>[1] Histograma — Años de vida profesional</h2><canvas id='c1'></canvas></div>"
                 + "<div class='card'><h2>[2] Barras — Área de interés posgrado</h2><canvas id='c2'></canvas></div>"
                 + "<div class='card'><h2>[3] Torta — Financiamiento</h2><canvas id='c3'></canvas></div>"
                 + "<div class='card'><h2>[4] Mapa de calor — Área × Institución futura</h2><canvas id='c4' style='height:300px'></canvas></div>"
                 + "<div class='card'><h2>[5] Radar — Likert institucional empleadores (1-4)</h2><canvas id='c5'></canvas></div>"
                 + "<div class='card'><h2>[6] Contingencia Área × Financiamiento + χ²</h2><div id='t6'></div></div>"
-                + "<div class='card'><h2>[7] Proyección Monte Carlo — " + (escenarios.isEmpty() ? "" : escHtml(escenarios.get(0).nombre))
-                + " (media " + (escenarios.isEmpty() ? "" : StatsUtil.f2(escenarios.get(0).media)) + ")</h2><canvas id='c7'></canvas></div>"
+                + "<div class='card'><h2>[7] Proyección Monte Carlo — " + tituloPrimerEscenario
+                + " (media " + mediaPrimerEscenario + ")</h2><canvas id='c7'></canvas></div>"
                 + "<div class='card'><h2>[8] Asignaturas ventajosas vs inútiles</h2><canvas id='c8'></canvas></div>"
                 + "<div class='card'><h2>[9] Empleadores — % acuerdo por ítem Likert</h2><canvas id='c9'></canvas></div>"
-                + "<div class='card'><h2>[10] Recomendaciones automáticas</h2><ul>" + recs + "</ul></div>"
-                + "</div><script>var D=" + json + ";\n" + JS + "</script></body></html>";
+                + "<div class='card'><h2>[10] Recomendaciones automáticas</h2><ul>"
+                + listaRecomendacionesHtml + "</ul></div>"
+                + "</div><script>var D=" + datosJsonParaGraficos + ";\n" + SCRIPT_GRAFICOS_JS
+                + "</script></body></html>";
 
-        Files.writeString(salida.resolve("dashboard.html"), html, StandardCharsets.UTF_8);
+        Files.writeString(carpetaSalida.resolve("dashboard.html"), paginaDashboard,
+                StandardCharsets.UTF_8);
         System.out.println("  -> dashboard.html");
+    }
+
+    // tarjetasKpiHtml(): las 4 tarjetas superiores del dashboard (antigüedad,
+    // inserción, intención de posgrado, necesita beca).
+    static String tarjetasKpiHtml() {
+        List<Double> antiguedades =
+                leerColumnaNumerica(titulados, COL_ANIOS_VIDA_PROFESIONAL);
+        double tasaInsercion = calcularProporcion(titulados, COL_SITUACION_LABORAL,
+                valorCelda -> !CsvUtil.normalizar(valorCelda).contains("NO_TRABAJA")
+                        && !valorCelda.isEmpty());
+        double intencionPosgrado = calcularProporcion(titulados, COL_INTERES_POSGRADO,
+                valorCelda -> valorCelda.equals("SI"));
+        double proporcionBeca = calcularProporcion(titulados, COL_FINANCIAMIENTO,
+                valorCelda -> CsvUtil.normalizar(valorCelda).contains("BECA"));
+        return "<div class='kpi'><b>Antigüedad media</b><div style='font-size:22px'>"
+                + (antiguedades.isEmpty() ? "NA"
+                        : StatsUtil.f2(StatsUtil.media(antiguedades)) + " ± "
+                                + StatsUtil.f2(StatsUtil.desvEstandar(antiguedades)))
+                + "</div></div><div class='kpi'><b>Tasa inserción</b><div style='font-size:22px'>"
+                + (Double.isNaN(tasaInsercion) ? "NA" : StatsUtil.f1(tasaInsercion * 100) + "%")
+                + "</div></div><div class='kpi'><b>Intención posgrado</b><div style='font-size:22px'>"
+                + (Double.isNaN(intencionPosgrado) ? "NA"
+                        : StatsUtil.f1(intencionPosgrado * 100) + "%")
+                + "</div></div><div class='kpi'><b>Requiere beca</b><div style='font-size:22px'>"
+                + (Double.isNaN(proporcionBeca) ? "NA"
+                        : StatsUtil.f1(proporcionBeca * 100) + "%")
+                + "</div></div>";
+    }
+
+    // contarRespuestasMultiples(): reutiliza la lógica "partir por |" para el
+    // gráfico [8] (asignaturas ventajosas vs inútiles).
+    static Map<String, Integer> contarRespuestasMultiples(String nombreColumna) {
+        Map<String, Integer> conteoPorOpcion = new LinkedHashMap<>();
+        if (!titulados.headers.contains(nombreColumna)) return conteoPorOpcion;
+        for (String respuestaMultiple : leerColumnaTexto(titulados, nombreColumna)) {
+            if (respuestaMultiple == null || respuestaMultiple.isEmpty()) continue;
+            for (String opcionIndividual : respuestaMultiple.split("\\|")) {
+                opcionIndividual = opcionIndividual.trim();
+                if (!opcionIndividual.isEmpty())
+                    conteoPorOpcion.put(opcionIndividual,
+                            conteoPorOpcion.getOrDefault(opcionIndividual, 0) + 1);
+            }
+        }
+        return conteoPorOpcion;
     }
 
     // ------------------------------------------------------------------------
@@ -923,210 +1656,260 @@ public class Analizador {
     // reales cargados. Cierra con referencias APA 7.ª ed. (sin URLs).
     // ------------------------------------------------------------------------
     static String moduloInforme() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("ANALISIS DE MERCADO — PERFIL, FORMACION Y EMPLEABILIDAD\n");
-        sb.append("Titulados de Ingenieria en Sistemas, UMSS (insumo Plan de Desarrollo\n");
-        sb.append("Estrategico y acreditacion ARCUSUR)\n");
-        sb.append("Fecha: ").append(LocalDate.now())
-                .append(" | N titulados=").append(TIT.filas.size())
-                .append(" | M empleadores=").append(EMP.filas.size()).append("\n\n");
+        StringBuilder reporte = new StringBuilder();
+        reporte.append("ANALISIS DE MERCADO — PERFIL, FORMACION Y EMPLEABILIDAD\n");
+        reporte.append("Titulados de Ingenieria en Sistemas, UMSS (insumo Plan de Desarrollo\n");
+        reporte.append("Estrategico y acreditacion ARCUSUR)\n");
+        reporte.append("Fecha: ").append(LocalDate.now())
+                .append(" | N titulados=").append(titulados.filas.size())
+                .append(" | M empleadores=").append(empleadores.filas.size()).append("\n");
+        reporte.append("Guía rápida: Likert 1-4 (1=total desacuerdo, 4=total acuerdo); "
+                + "p<0.05 en chi2 = hay relación; IC95% = rango del valor real.\n\n");
 
-        List<Double> ant = num(TIT, "anios_vida_profesional");
-        double mAnt = ant.isEmpty() ? Double.NaN : StatsUtil.media(ant);
-        double sAnt = StatsUtil.desvEstandar(ant);
-        double pIns = prop(TIT, "situacion_laboral_actual", v -> !CsvUtil.normalizar(v).contains("NO_TRABAJA") && !v.isEmpty());
-        double pPos = prop(TIT, "interes_posgrado", v -> v.equals("SI"));
-        double[] icIns = StatsUtil.icProporcion(pIns, TIT.filas.size());
-        Map<String, Integer> fArea = StatsUtil.frecuencias(col(TIT, "area_interes_posgrado"));
-        List<Map.Entry<String, Integer>> areas = new ArrayList<>(fArea.entrySet());
-        areas.sort((a, b) -> b.getValue() - a.getValue());
-        Map<String, Integer> fSec = EMP.headers.contains("sector_rubro")
-                ? StatsUtil.frecuencias(col(EMP, "sector_rubro")) : new LinkedHashMap<>();
+        List<Double> antiguedades =
+                leerColumnaNumerica(titulados, COL_ANIOS_VIDA_PROFESIONAL);
+        double antiguedadMedia = antiguedades.isEmpty() ? Double.NaN
+                : StatsUtil.media(antiguedades);
+        double antiguedadDesviacion = StatsUtil.desvEstandar(antiguedades);
+        double tasaInsercion = calcularProporcion(titulados, COL_SITUACION_LABORAL,
+                valorCelda -> !CsvUtil.normalizar(valorCelda).contains("NO_TRABAJA")
+                        && !valorCelda.isEmpty());
+        double intencionPosgrado = calcularProporcion(titulados, COL_INTERES_POSGRADO,
+                valorCelda -> valorCelda.equals("SI"));
+        double[] intervaloInsercion =
+                StatsUtil.icProporcion(tasaInsercion, titulados.filas.size());
+        Map<String, Integer> frecuenciaPorArea = StatsUtil.frecuencias(
+                leerColumnaTexto(titulados, COL_AREA_INTERES));
+        List<Map.Entry<String, Integer>> areasOrdenadas =
+                new ArrayList<>(frecuenciaPorArea.entrySet());
+        areasOrdenadas.sort((areaA, areaB) -> areaB.getValue() - areaA.getValue());
+        Map<String, Integer> frecuenciaPorSector =
+                empleadores.headers.contains("sector_rubro")
+                        ? StatsUtil.frecuencias(
+                                leerColumnaTexto(empleadores, "sector_rubro"))
+                        : new LinkedHashMap<>();
 
-        sb.append("1. INTRODUCCION Y JUSTIFICACION\n");
-        sb.append("La Carrera de Ingenieria en Sistemas (UMSS) desarrolla su autoevaluacion\n");
-        sb.append("para el Plan de Desarrollo Estrategico y su postulacion ante ARCUSUR.\n");
-        sb.append("Objetivo general: cuantificar tendencias de formacion continua, patrones\n");
-        sb.append("demograficos y de preferencia academica de los titulados. Objetivos\n");
-        sb.append("especificos: HU1 antiguedad/empleabilidad, HU2 demanda de posgrado,\n");
-        sb.append("HU3 financiamiento, HU4 brechas de competencias, HU5 reportes y\n");
-        sb.append("dashboard. Justificacion: evidencia empirica de pertinencia curricular\n");
-        sb.append("y de gestion de alianzas, criterio exigible por pares ARCUSUR.\n\n");
+        reporte.append("1. INTRODUCCION Y JUSTIFICACION\n");
+        reporte.append("La Carrera de Ingenieria en Sistemas (UMSS) desarrolla su autoevaluacion\n");
+        reporte.append("para el Plan de Desarrollo Estrategico y su postulacion ante ARCUSUR.\n");
+        reporte.append("Objetivo general: cuantificar tendencias de formacion continua, patrones\n");
+        reporte.append("demograficos y de preferencia academica de los titulados. Objetivos\n");
+        reporte.append("especificos: HU1 antiguedad/empleabilidad, HU2 demanda de posgrado,\n");
+        reporte.append("HU3 financiamiento, HU4 brechas de competencias, HU5 reportes y\n");
+        reporte.append("dashboard. Justificacion: evidencia empirica de pertinencia curricular\n");
+        reporte.append("y de gestion de alianzas, criterio exigible por pares ARCUSUR.\n\n");
 
-        sb.append("2. MARCO METODOLOGICO\n");
-        sb.append("Diseno cuantitativo exploratorio sobre encuestas estructuradas (titulados\n");
-        sb.append("N=").append(TIT.filas.size()).append(", empleadores M=").append(EMP.filas.size()).append(").\n");
-        sb.append("Pipeline: Data Wrangling (validacion + limpieza) -> estadistica univariada\n");
-        sb.append("(media, mediana, desv. estandar, frecuencias, histogramas) -> bivariada\n");
-        sb.append("con pruebas chi-cuadrada de independencia -> IC 95% (t Student para\n");
-        sb.append("medias, Z para proporciones, varianzas agrupadas para diferencias) ->\n");
-        sb.append("experimentacion Monte Carlo ligera (solo Math.random) -> dashboard.\n");
-        sb.append("Sin generadores congruenciales: la fuente son los datos reales.\n\n");
+        reporte.append("2. MARCO METODOLOGICO\n");
+        reporte.append("Diseno cuantitativo exploratorio sobre encuestas estructuradas (titulados\n");
+        reporte.append("N=").append(titulados.filas.size()).append(", empleadores M=")
+                .append(empleadores.filas.size()).append(").\n");
+        reporte.append("Pipeline: Data Wrangling (validacion + limpieza) -> estadistica univariada\n");
+        reporte.append("(media, mediana, desv. estandar, frecuencias, histogramas) -> bivariada\n");
+        reporte.append("con pruebas chi-cuadrada de independencia -> IC 95% (t Student para\n");
+        reporte.append("medias, Z para proporciones, varianzas agrupadas para diferencias) ->\n");
+        reporte.append("experimentacion Monte Carlo ligera (solo Math.random) -> dashboard.\n");
+        reporte.append("Sin generadores congruenciales: la fuente son los datos reales.\n\n");
 
-        sb.append("3. DEMANDA EDUCATIVA Y PERFIL DE LOS TITULADOS\n");
-        sb.append(String.format(Locale.US,
+        reporte.append("3. DEMANDA EDUCATIVA Y PERFIL DE LOS TITULADOS\n");
+        reporte.append(String.format(Locale.US,
                 "Antiguedad media %.2f anios (desv. %.2f). Tasa de insercion %.1f%% IC95 [%.1f, %.1f].\n",
-                mAnt, sAnt, pIns * 100, icIns[0] * 100, icIns[1] * 100));
-        sb.append(String.format(Locale.US, "Intencion de posgrado %.1f%%. Areas top: ", pPos * 100));
-        int mostradas = 0; // (VACIO) = sin interés declarado: no es un área y se excluye del top
-        for (int i = 0; i < areas.size() && mostradas < 3; i++) {
-            if (areas.get(i).getKey().equals("(VACIO)")) continue;
-            sb.append(areas.get(i).getKey()).append(" (").append(areas.get(i).getValue()).append(") ");
-            mostradas++;
-        }
-        sb.append("\nSegmentacion Junior/Intermedio/Consolidado y detalle en reporte_segmentacion.txt.\n\n");
+                antiguedadMedia, antiguedadDesviacion, tasaInsercion * 100,
+                intervaloInsercion[0] * 100, intervaloInsercion[1] * 100));
+        reporte.append(String.format(Locale.US, "Intencion de posgrado %.1f%%. Areas top: ",
+                intencionPosgrado * 100));
+        anexarTopTresCategorias(reporte, areasOrdenadas);
+        reporte.append("\nSegmentacion Junior/Intermedio/Consolidado y detalle en "
+                + "reporte_segmentacion.txt.\n\n");
 
-        sb.append("4. OFERTA LABORAL Y REQUERIMIENTOS DEL SECTOR\n");
-        List<Map.Entry<String, Integer>> secs = new ArrayList<>(fSec.entrySet());
-        secs.sort((a, b) -> b.getValue() - a.getValue());
-        sb.append("Sectores top empleadores: ");
-        for (int i = 0; i < Math.min(3, secs.size()); i++)
-            sb.append(secs.get(i).getKey()).append(" (").append(secs.get(i).getValue()).append(") ");
-        sb.append("\nNivel de formacion mas demandado y Likert institucional en reporte_empleadores.txt;\n");
-        sb.append("competencias emergentes del texto libre en reporte_brechas.txt.\n\n");
+        reporte.append("4. OFERTA LABORAL Y REQUERIMIENTOS DEL SECTOR\n");
+        List<Map.Entry<String, Integer>> sectoresOrdenados =
+                new ArrayList<>(frecuenciaPorSector.entrySet());
+        sectoresOrdenados.sort((sectorA, sectorB) ->
+                sectorB.getValue() - sectorA.getValue());
+        reporte.append("Sectores top empleadores: ");
+        for (int indiceSector = 0;
+                indiceSector < Math.min(3, sectoresOrdenados.size()); indiceSector++)
+            reporte.append(sectoresOrdenados.get(indiceSector).getKey()).append(" (")
+                    .append(sectoresOrdenados.get(indiceSector).getValue()).append(") ");
+        reporte.append("\nNivel de formacion mas demandado y Likert institucional en "
+                + "reporte_empleadores.txt;\n");
+        reporte.append("competencias emergentes del texto libre en reporte_brechas.txt.\n\n");
 
-        sb.append("5. DIAGNOSTICO Y SINTESIS\n");
-        StatsUtil.TablaContingencia taf = StatsUtil.contingencia(
-                columnaExtendida("area_interes_posgrado"), columnaExtendida("financiamiento_formacion"));
-        sb.append(String.format(Locale.US,
+        reporte.append("5. DIAGNOSTICO Y SINTESIS\n");
+        StatsUtil.TablaContingencia cruceAreaFinanciamiento = StatsUtil.contingencia(
+                resolverColumna(COL_AREA_INTERES), resolverColumna(COL_FINANCIAMIENTO));
+        reporte.append(String.format(Locale.US,
                 "Cruce area x financiamiento: chi2=%.2f gl=%d p=%.4f (%s). ",
-                taf.chi2, taf.gl, taf.pValor, (taf.pValor < 0.05 ? "dependencia" : "independencia")));
-        StatsUtil.TablaContingencia tfn = StatsUtil.contingencia(
-                columnaExtendida("financiamiento_formacion"), columnaExtendida("nivel_posgrado"));
-        sb.append(String.format(Locale.US,
+                cruceAreaFinanciamiento.chi2, cruceAreaFinanciamiento.gl,
+                cruceAreaFinanciamiento.pValor,
+                (cruceAreaFinanciamiento.pValor < 0.05 ? "dependencia" : "independencia")));
+        StatsUtil.TablaContingencia cruceFinanciamientoNivel = StatsUtil.contingencia(
+                resolverColumna(COL_FINANCIAMIENTO), resolverColumna(COL_NIVEL_POSGRADO));
+        reporte.append(String.format(Locale.US,
                 "Cruce financiamiento x nivel: chi2=%.2f gl=%d p=%.4f (%s).\n",
-                tfn.chi2, tfn.gl, tfn.pValor, (tfn.pValor < 0.05 ? "dependencia" : "independencia")));
-        sb.append("Hallazgos y brechas criticas: ver reportes bivariado/brechas; estabilidad\n");
-        sb.append("validada por sensibilidad del 90% (reporte_experimentacion.txt).\n\n");
+                cruceFinanciamientoNivel.chi2, cruceFinanciamientoNivel.gl,
+                cruceFinanciamientoNivel.pValor,
+                (cruceFinanciamientoNivel.pValor < 0.05 ? "dependencia" : "independencia")));
+        reporte.append("Hallazgos y brechas criticas: ver reportes bivariado/brechas; estabilidad\n");
+        reporte.append("validada por sensibilidad del 90% (reporte_experimentacion.txt).\n\n");
 
-        sb.append("6. CONCLUSIONES Y PROPUESTAS ESTRATEGICAS\n");
-        List<String> recs = recomendaciones();
-        for (int i = 0; i < recs.size(); i++) sb.append((i + 1) + ". " + recs.get(i) + "\n");
-        sb.append("Lineas permanentes: posgrados modulares, diversificacion de becas,\n");
-        sb.append("vinculacion B2B y observatorio permanente de egresados.\n\n");
+        reporte.append("6. CONCLUSIONES Y PROPUESTAS ESTRATEGICAS\n");
+        List<String> recomendaciones = generarRecomendacionesAutomaticas();
+        for (int indiceRecomendacion = 0;
+                indiceRecomendacion < recomendaciones.size(); indiceRecomendacion++)
+            reporte.append((indiceRecomendacion + 1) + ". "
+                    + recomendaciones.get(indiceRecomendacion) + "\n");
+        reporte.append("Lineas permanentes: posgrados modulares, diversificacion de becas,\n");
+        reporte.append("vinculacion B2B y observatorio permanente de egresados.\n\n");
 
-        sb.append("7. REFERENCIAS BIBLIOGRAFICAS (APA 7)\n");
-        sb.append("Coss Bu, R. (1993). Simulacion: Un enfoque practico. Limusa.\n");
-        sb.append("Hernandez Sampieri, R., Fernandez Collado, C., y Baptista Lucio, P. (2014).\n");
-        sb.append("    Metodologia de la investigacion (6.a ed.). McGraw-Hill.\n");
-        sb.append("Walpole, R. E., Myers, R. H., Myers, S. L., y Ye, K. (2012).\n");
-        sb.append("    Probabilidad y estadistica para ingenieria y ciencias (9.a ed.). Pearson.\n");
-        sb.append("Red de Agencias Nacionales de Acreditacion. (2008). Sistema de\n");
-        sb.append("    acreditacion regional de carreras universitarias (ARCUSUR).\n");
-        sb.append("Carrera de Ingenieria en Sistemas, UMSS. Encuestas a titulados y\n");
-        sb.append("    empleadores: instrumento de autoevaluacion (documento interno).\n");
-        return sb.toString();
+        reporte.append("7. REFERENCIAS BIBLIOGRAFICAS (APA 7)\n");
+        reporte.append("Coss Bu, R. (1993). Simulacion: Un enfoque practico. Limusa.\n");
+        reporte.append("Hernandez Sampieri, R., Fernandez Collado, C., y Baptista Lucio, P. (2014).\n");
+        reporte.append("    Metodologia de la investigacion (6.a ed.). McGraw-Hill.\n");
+        reporte.append("Walpole, R. E., Myers, R. H., Myers, S. L., y Ye, K. (2012).\n");
+        reporte.append("    Probabilidad y estadistica para ingenieria y ciencias (9.a ed.). Pearson.\n");
+        reporte.append("Red de Agencias Nacionales de Acreditacion. (2008). Sistema de\n");
+        reporte.append("    acreditacion regional de carreras universitarias (ARCUSUR).\n");
+        reporte.append("Carrera de Ingenieria en Sistemas, UMSS. Encuestas a titulados y\n");
+        reporte.append("    empleadores: instrumento de autoevaluacion (documento interno).\n");
+        return reporte.toString();
     }
 
-    static String kpisHtml() {
-        List<Double> ant = num(TIT, "anios_vida_profesional");
-        double pIns = prop(TIT, "situacion_laboral_actual", v -> !CsvUtil.normalizar(v).contains("NO_TRABAJA") && !v.isEmpty());
-        double pPos = prop(TIT, "interes_posgrado", v -> v.equals("SI"));
-        double pBeca = prop(TIT, "financiamiento_formacion", v -> CsvUtil.normalizar(v).contains("BECA"));
-        return "<div class='kpi'><b>Antigüedad media</b><div style='font-size:22px'>"
-                + (ant.isEmpty() ? "NA" : StatsUtil.f2(StatsUtil.media(ant)) + " ± " + StatsUtil.f2(StatsUtil.desvEstandar(ant)))
-                + "</div></div><div class='kpi'><b>Tasa inserción</b><div style='font-size:22px'>"
-                + (Double.isNaN(pIns) ? "NA" : StatsUtil.f1(pIns * 100) + "%")
-                + "</div></div><div class='kpi'><b>Intención posgrado</b><div style='font-size:22px'>"
-                + (Double.isNaN(pPos) ? "NA" : StatsUtil.f1(pPos * 100) + "%")
-                + "</div></div><div class='kpi'><b>Requiere beca</b><div style='font-size:22px'>"
-                + (Double.isNaN(pBeca) ? "NA" : StatsUtil.f1(pBeca * 100) + "%") + "</div></div>";
-    }
-
-    static Map<String, Integer> contarOpciones(String colTIT) {
-        Map<String, Integer> f = new LinkedHashMap<>();
-        if (!TIT.headers.contains(colTIT)) return f;
-        for (String v : col(TIT, colTIT)) {
-            if (v == null || v.isEmpty()) continue;
-            for (String op : v.split("\\|")) { op = op.trim(); if (!op.isEmpty()) f.put(op, f.getOrDefault(op, 0) + 1); }
+    // anexarTopTresCategorias(): escribe "NOMBRE (conteo)" de las 3 primeras,
+    // saltando "(VACIO)" porque la no-respuesta no es una categoría real.
+    static void anexarTopTresCategorias(StringBuilder reporte,
+            List<Map.Entry<String, Integer>> categoriasOrdenadas) {
+        int categoriasMostradas = 0; // (VACIO) = sin interés declarado: se excluye del top
+        for (int indiceCategoria = 0;
+                indiceCategoria < categoriasOrdenadas.size() && categoriasMostradas < 3;
+                indiceCategoria++) {
+            if (categoriasOrdenadas.get(indiceCategoria).getKey().equals("(VACIO)")) continue;
+            reporte.append(categoriasOrdenadas.get(indiceCategoria).getKey()).append(" (")
+                    .append(categoriasOrdenadas.get(indiceCategoria).getValue()).append(") ");
+            categoriasMostradas++;
         }
-        return f;
     }
 
-    // ---- JSON helpers ----
-    static String aJsonHist(List<double[]> h) {
-        StringBuilder s = new StringBuilder("[");
-        for (int i = 0; i < h.size(); i++) {
-            if (i > 0) s.append(",");
-            s.append("[").append(StatsUtil.f2(h.get(i)[0])).append(",").append(StatsUtil.f2(h.get(i)[1]))
-                    .append(",").append((int) h.get(i)[2]).append("]");
+    // ---- Serialización a JSON para los gráficos del dashboard ----
+
+    // jsonDeHistograma(): [[limInf, limSup, conteo], ...] para el gráfico [1].
+    static String jsonDeHistograma(List<double[]> intervalosHistograma) {
+        StringBuilder fragmentoJson = new StringBuilder("[");
+        for (int indiceIntervalo = 0;
+                indiceIntervalo < intervalosHistograma.size(); indiceIntervalo++) {
+            if (indiceIntervalo > 0) fragmentoJson.append(",");
+            fragmentoJson.append("[").append(StatsUtil.f2(
+                    intervalosHistograma.get(indiceIntervalo)[0])).append(",")
+                    .append(StatsUtil.f2(intervalosHistograma.get(indiceIntervalo)[1]))
+                    .append(",").append((int) intervalosHistograma.get(indiceIntervalo)[2])
+                    .append("]");
         }
-        return s.append("]").toString();
+        return fragmentoJson.append("]").toString();
     }
 
-    static String aJsonFrec(Map<String, Integer> f) {
-        StringBuilder s = new StringBuilder("[");
-        boolean p = false;
-        for (Map.Entry<String, Integer> e : f.entrySet()) {
-            if (p) s.append(","); p = true;
-            s.append("{\"k\":").append(q(e.getKey())).append(",\"v\":").append(e.getValue()).append("}");
+    // jsonDeFrecuencias(): [{"k":categoria,"v":conteo}] para barras y torta.
+    static String jsonDeFrecuencias(Map<String, Integer> frecuenciaPorCategoria) {
+        StringBuilder fragmentoJson = new StringBuilder("[");
+        boolean esPrimerElemento = true;
+        for (Map.Entry<String, Integer> categoriaConteo : frecuenciaPorCategoria.entrySet()) {
+            if (!esPrimerElemento) fragmentoJson.append(",");
+            esPrimerElemento = false;
+            fragmentoJson.append("{\"k\":").append(entreComillasJson(categoriaConteo.getKey()))
+                    .append(",\"v\":").append(categoriaConteo.getValue()).append("}");
         }
-        return s.append("]").toString();
+        return fragmentoJson.append("]").toString();
     }
 
-    static String aJsonStr(List<String> l) {
-        StringBuilder s = new StringBuilder("[");
-        for (int i = 0; i < l.size(); i++) { if (i > 0) s.append(","); s.append(q(l.get(i))); }
-        return s.append("]").toString();
-    }
-
-    static String aJsonNum(List<Double> l) {
-        StringBuilder s = new StringBuilder("[");
-        for (int i = 0; i < l.size(); i++) { if (i > 0) s.append(","); s.append(StatsUtil.f2(l.get(i))); }
-        return s.append("]").toString();
-    }
-
-    static String aJsonNumInt(List<Integer> l) {
-        StringBuilder s = new StringBuilder("[");
-        for (int i = 0; i < l.size(); i++) { if (i > 0) s.append(","); s.append(l.get(i)); }
-        return s.append("]").toString();
-    }
-
-    static String aJsonMat(int[][] m) {
-        StringBuilder s = new StringBuilder("[");
-        for (int i = 0; i < m.length; i++) {
-            if (i > 0) s.append(",");
-            s.append("[");
-            for (int j = 0; j < m[i].length; j++) { if (j > 0) s.append(","); s.append(m[i][j]); }
-            s.append("]");
+    // jsonDeTextos(): ["a","b",...] para etiquetas del heatmap y del radar.
+    static String jsonDeTextos(List<String> textosOriginales) {
+        StringBuilder fragmentoJson = new StringBuilder("[");
+        for (int indiceTexto = 0; indiceTexto < textosOriginales.size(); indiceTexto++) {
+            if (indiceTexto > 0) fragmentoJson.append(",");
+            fragmentoJson.append(entreComillasJson(textosOriginales.get(indiceTexto)));
         }
-        return s.append("]").toString();
+        return fragmentoJson.append("]").toString();
     }
 
-    static String aJsonLikert() {
-        StringBuilder s = new StringBuilder("[");
-        boolean p = false;
-        for (String c : LIKERT_EMP) {
-            if (!EMP.headers.contains(c)) continue;
-            List<Double> xs = likertCol(EMP, c);
-            if (xs.isEmpty()) continue;
-            if (p) s.append(","); p = true;
-            s.append("{\"k\":").append(q(c.replace("likert_", ""))).append(",\"v\":")
-                    .append(StatsUtil.f1(StatsUtil.pctAcuerdo(xs, 3))).append("}");
+    // jsonDeNumeros(): [3.24, ...] para los valores del radar.
+    static String jsonDeNumeros(List<Double> numerosOriginales) {
+        StringBuilder fragmentoJson = new StringBuilder("[");
+        for (int indiceNumero = 0; indiceNumero < numerosOriginales.size(); indiceNumero++) {
+            if (indiceNumero > 0) fragmentoJson.append(",");
+            fragmentoJson.append(StatsUtil.f2(numerosOriginales.get(indiceNumero)));
         }
-        return s.append("]").toString();
+        return fragmentoJson.append("]").toString();
     }
 
-    static String q(String s) {
-        if (s == null) s = "";
-        return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    // jsonDeEnteros(): [12, 13, ...] para las 1000 demandas simuladas.
+    static String jsonDeEnteros(List<Integer> enterosOriginales) {
+        StringBuilder fragmentoJson = new StringBuilder("[");
+        for (int indiceEntero = 0; indiceEntero < enterosOriginales.size(); indiceEntero++) {
+            if (indiceEntero > 0) fragmentoJson.append(",");
+            fragmentoJson.append(enterosOriginales.get(indiceEntero));
+        }
+        return fragmentoJson.append("]").toString();
     }
 
-    static String round3(double x) {
-        if (Double.isNaN(x) || Double.isInfinite(x)) return "0";
-        return String.format(Locale.US, "%.3f", x);
+    // jsonDeMatriz(): [[1,2],[3,4]] con los conteos del mapa de calor.
+    static String jsonDeMatriz(int[][] matrizConteos) {
+        StringBuilder fragmentoJson = new StringBuilder("[");
+        for (int indiceFila = 0; indiceFila < matrizConteos.length; indiceFila++) {
+            if (indiceFila > 0) fragmentoJson.append(",");
+            fragmentoJson.append("[");
+            for (int indiceColumna = 0;
+                    indiceColumna < matrizConteos[indiceFila].length; indiceColumna++) {
+                if (indiceColumna > 0) fragmentoJson.append(",");
+                fragmentoJson.append(matrizConteos[indiceFila][indiceColumna]);
+            }
+            fragmentoJson.append("]");
+        }
+        return fragmentoJson.append("]").toString();
     }
 
-    static String escHtml(String s) {
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    // jsonDeAcuerdoLikert(): % de acuerdo de cada ítem para el gráfico [9].
+    static String jsonDeAcuerdoLikert() {
+        StringBuilder fragmentoJson = new StringBuilder("[");
+        boolean esPrimerElemento = true;
+        for (String nombreItemLikert : ITEMS_LIKERT_EMPLEADOR) {
+            if (!empleadores.headers.contains(nombreItemLikert)) continue;
+            List<Double> puntajesLikert = leerColumnaLikert(empleadores, nombreItemLikert);
+            if (puntajesLikert.isEmpty()) continue;
+            if (!esPrimerElemento) fragmentoJson.append(",");
+            esPrimerElemento = false;
+            fragmentoJson.append("{\"k\":")
+                    .append(entreComillasJson(nombreItemLikert.replace("likert_", "")))
+                    .append(",\"v\":")
+                    .append(StatsUtil.f1(StatsUtil.pctAcuerdo(puntajesLikert, 3))).append("}");
+        }
+        return fragmentoJson.append("]").toString();
     }
 
-    /** JS con canvas puro (sin librerías): 9 gráficos + tooltips hover (HU5 "interactivo").
-     *  Cómo funciona bars(): dibuja a doble resolución (retina) y guarda la
-     *  geometría de cada barra en c._bars; un listener mousemove traduce el
-     *  cursor a coordenadas del canvas, detecta la barra bajo el puntero y
-     *  muestra el div #tip con "etiqueta: valor". Sin dependencias externas. */
-    static final String JS =
+    // entreComillasJson(): escapa un texto para incrustarlo en JSON
+    // (barras y comillas internas).
+    static String entreComillasJson(String textoOriginal) {
+        if (textoOriginal == null) textoOriginal = "";
+        return "\"" + textoOriginal.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    // conTresDecimales(): χ² y p-valor con 3 decimales ("0" si no calculable).
+    static String conTresDecimales(double valorOriginal) {
+        if (Double.isNaN(valorOriginal) || Double.isInfinite(valorOriginal)) return "0";
+        return String.format(Locale.US, "%.3f", valorOriginal);
+    }
+
+    // escaparHtml(): evita que una recomendación con "<" rompa el dashboard.
+    static String escaparHtml(String textoOriginal) {
+        return textoOriginal.replace("&", "&amp;").replace("<", "&lt;")
+                .replace(">", "&gt;");
+    }
+
+    /** SCRIPT_GRAFICOS_JS: dibujado con canvas puro (sin librerías): 9 gráficos
+     *  + tooltips hover (HU5 "interactivo"). Cómo funciona bars(): dibuja a
+     *  doble resolución (retina) y guarda la geometría de cada barra en
+     *  c._bars; un listener mousemove traduce el cursor a coordenadas del
+     *  canvas, detecta la barra bajo el puntero y muestra el div #tip con
+     *  "etiqueta: valor". Sin dependencias externas. */
+    static final String SCRIPT_GRAFICOS_JS =
         "var TIP=document.getElementById('tip');\n"
         + "function ctx(id){var c=document.getElementById(id);return[c,c.getContext('2d')];}\n"
         + "function bars(id,data,labels,color){var a=ctx(id),c=a[0],g=a[1];var W=c.width=c.offsetWidth*2,H=c.height=520;"

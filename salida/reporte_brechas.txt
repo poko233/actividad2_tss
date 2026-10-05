@@ -1,7 +1,16 @@
 ======================================================================
 REPORTE BRECHAS DE COMPETENCIAS
-Fecha: 2026-10-04 | N_titulados=60 N_empleadores=20
+Fecha: 2026-10-05 | N_titulados=61 N_empleadores=20
 ======================================================================
+------------------------------------------------------------
+CÓMO LEER: brecha = lo que FALTA para llegar al ideal.
+ (a) techo 4 - media: 0 = perfecto; cerca de 3 = grave.
+     'CRITICA' = está entre las 5 peores.
+ (b) positivo = el empleador ve mejor desempeño del que el
+     titulado siente con su formación.
+ (c) menciones = veces que aparece la palabra en texto libre.
+ (d) importancia - suficiencia: 1.5 o más = brecha crítica.
+------------------------------------------------------------
 NOTA: la encuesta de titulados NO incluye Likert hard/soft.
 Se calcula: (a) brecha institucional empleadores = techo(4) - media item;
 (b) brecha empleador-titulado = likert_desempeno(empleador) vs satisfaccion_formacion(titulado);
@@ -18,9 +27,10 @@ Se calcula: (a) brecha institucional empleadores = techo(4) - media item;
 8. likert_considera_opinion     media=3.26 brecha=0.74 n=19 IC95=[2.81,3.71] 
 9. likert_formacion_desempeno   media=3.42 brecha=0.58 n=19 IC95=[2.96,3.88] 
 10. likert_consistencia_titulo   media=3.50 brecha=0.50 n=16 IC95=[3.07,3.93] 
+-> La mayor brecha es 'likert_consulta_regular' (1.94 puntos bajo el ideal de 4).
 
 --- (b) Brecha empleador-titulado ---
-Media empleador (formacion->desempeno)=3.42 vs media titulado (satisfaccion)=3.08 => brecha=0.34
+Media empleador (formacion->desempeno)=3.42 vs media titulado (satisfaccion)=3.05 => brecha=0.37
 Empleadores valoran mejor el desempeno de lo que el titulado valora su formacion.
 
 --- (c) Competencias mas demandadas (texto libre empleadores) ---

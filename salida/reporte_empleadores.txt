@@ -1,7 +1,14 @@
 ======================================================================
 REPORTE EMPLEADORES
-Fecha: 2026-10-04 | N_titulados=60 N_empleadores=20
+Fecha: 2026-10-05 | N_titulados=61 N_empleadores=20
 ======================================================================
+------------------------------------------------------------
+CÓMO LEER: acuerdo% = % que marcó 3 (parcialmente) o 4.
+Escala del empleador: 1 = totalmente en desacuerdo,
+3 = parcialmente de acuerdo, 4 = totalmente de acuerdo
+(el 2 no existe en su encuesta). NO_SABE se excluye.
+Cobertura: mínimo 3 empresas, una pública y una privada.
+------------------------------------------------------------
 
 --- Descriptivo categorico ---
 

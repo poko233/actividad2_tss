@@ -1,53 +1,66 @@
 ======================================================================
 REPORTE BIVARIADO (contingencia + chi-cuadrada)
-Fecha: 2026-10-04 | N_titulados=60 N_empleadores=20
+Fecha: 2026-10-05 | N_titulados=61 N_empleadores=20
 ======================================================================
+------------------------------------------------------------
+CÓMO LEER: cada tabla cruza 2 preguntas (ej. área VS beca).
+chi2 mide qué tan lejos está lo visto de 'no hay relación'.
+p = probabilidad de ver esto por puro azar:
+  p < 0.05  -> SÍ hay relación (una condiciona a la otra).
+  p >= 0.05 -> NO hay evidencia de relación.
+gl = tamaño de la tabla. 'Consistencia OK' = totales cuadran.
+------------------------------------------------------------
 
-### HU2: area x financiamiento [area_interes_posgrado x financiamiento_formacion] n=60
+### HU2: area x financiamiento [area_interes_posgrado x financiamiento_formacion] n=61
                         RECURSOS_P… BECA_PARCI… BECA_TOTAL  TOTAL
-(VACIO)                 15          0           3           18
+(VACIO)                 16          0           3           19
 IA                      8           4           2           14
 ROBOTICA                2           1           1           4
 BASE_DATOS              4           1           0           5
 ING_SOFTWARE            4           1           5           10
 REDES_SEGURIDAD         8           1           0           9
-TOTAL                   41          8           11          60
-chi2=16.692 gl=10 p=0.0815 => INDEPENDIENTES (no hay dependencia significativa)
-Consistencia: total tabla=60 OK
+TOTAL                   42          8           11          61
+chi2=17.177 gl=10 p=0.0705 => INDEPENDIENTES (no hay dependencia significativa)
+Consistencia: total tabla=61 OK
+En palabras simples: 'area_interes_posgrado' NO muestra relación con 'financiamiento_formacion' en esta muestra.
 
-### HU2/HU3: nivel x institucion [nivel_posgrado x institucion_formacion] n=37
+### HU2/HU3: nivel x institucion [nivel_posgrado x institucion_formacion] n=38
                         DIR_POSGRA… UNIV_INTER… EUPG        UNIV_PUBLI… UNIV_PRIVA… IBNORCA     TOTAL
 MAESTRIA                3           5           3           2           2           0           15
 DIPLOMADO               1           1           1           1           1           0           5
-ESPECIALIDAD            1           2           2           1           6           1           13
+ESPECIALIDAD            1           2           3           1           6           1           14
 DOCTORADO               1           0           1           1           1           0           4
-TOTAL                   6           8           7           5           10          1           37
-chi2=8.799 gl=15 p=0.8878 => INDEPENDIENTES (no hay dependencia significativa)
-Consistencia: total tabla=37 OK
+TOTAL                   6           8           8           5           10          1           38
+chi2=8.566 gl=15 p=0.8991 => INDEPENDIENTES (no hay dependencia significativa)
+Consistencia: total tabla=38 OK
+En palabras simples: 'nivel_posgrado' NO muestra relación con 'institucion_formacion' en esta muestra.
 
-### HU3: financiamiento x nivel posgrado [financiamiento_formacion x nivel_posgrado] n=60
+### HU3: financiamiento x nivel posgrado [financiamiento_formacion x nivel_posgrado] n=61
                         MAESTRIA    DIPLOMADO   (VACIO)     ESPECIALID… DOCTORADO   TOTAL
-RECURSOS_PROPIOS        8           5           18          8           2           41
+RECURSOS_PROPIOS        8           5           18          9           2           42
 BECA_PARCIAL            3           0           2           3           0           8
 BECA_TOTAL              4           0           3           2           2           11
-TOTAL                   15          5           23          13          4           60
-chi2=8.926 gl=8 p=0.3486 => INDEPENDIENTES (no hay dependencia significativa)
-Consistencia: total tabla=60 OK
+TOTAL                   15          5           23          14          4           61
+chi2=8.792 gl=8 p=0.3602 => INDEPENDIENTES (no hay dependencia significativa)
+Consistencia: total tabla=61 OK
+En palabras simples: 'financiamiento_formacion' NO muestra relación con 'nivel_posgrado' en esta muestra.
 
-### HU1: situacion x satisfaccion [situacion_laboral_actual x satisfaccion_formacion] n=60
+### HU1: situacion x satisfaccion [situacion_laboral_actual x satisfaccion_formacion] n=61
                         ACUERDO     TOTALMENTE… DESACUERDO  TOTALMENTE… TOTAL
-TRABAJA_ORG             22          15          10          1           48
+TRABAJA_ORG             22          15          10          2           49
 NO_TRABAJA              2           3           0           0           5
 EMPRENDIMIENTO          3           2           1           1           7
-TOTAL                   27          20          11          2           60
-chi2=5.273 gl=6 p=0.5093 => INDEPENDIENTES (no hay dependencia significativa)
-Consistencia: total tabla=60 OK
+TOTAL                   27          20          11          3           61
+chi2=3.940 gl=6 p=0.6848 => INDEPENDIENTES (no hay dependencia significativa)
+Consistencia: total tabla=61 OK
+En palabras simples: 'situacion_laboral_actual' NO muestra relación con 'satisfaccion_formacion' en esta muestra.
 
-### HU1: antiguedad x intencion posgrado [segmento_antiguedad x interes_posgrado] n=60
+### HU1: antiguedad x intencion posgrado [segmento_antiguedad x interes_posgrado] n=61
                         NO          SI          TOTAL
 JUNIOR_0_3              6           14          20
 CONSOLIDADO_8_MAS       8           21          29
-INTERMEDIO_4_7          4           7           11
-TOTAL                   18          42          60
-chi2=0.293 gl=2 p=0.8639 => INDEPENDIENTES (no hay dependencia significativa)
-Consistencia: total tabla=60 OK
+INTERMEDIO_4_7          5           7           12
+TOTAL                   19          42          61
+chi2=0.803 gl=2 p=0.6693 => INDEPENDIENTES (no hay dependencia significativa)
+Consistencia: total tabla=61 OK
+En palabras simples: 'segmento_antiguedad' NO muestra relación con 'interes_posgrado' en esta muestra.
