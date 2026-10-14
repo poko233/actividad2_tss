@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ======================================================================
+     POM RAÍZ del monorepo "mercado-umss".
+     No compila nada: solo declara los dos módulos y las versiones
+     de librerías que comparten (para que haya UNA sola verdad).
+     Módulos:
+       nucleo   -> lógica pura (CSV + estadística). Sin Spring ni Vaadin.
+       servidor -> app web (Spring Boot + Vaadin + SQLite). Usa al núcleo.
+     ====================================================================== -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>bo.umss.mercado</groupId>
+  <artifactId>mercado-umss</artifactId>
+  <version>1.0.0</version>
+  <packaging>pom</packaging>
+  <name>Mercado UMSS (monorepo)</name>
+
+  <modules>
+    <module>nucleo</module>
+    <module>servidor</module>
+  </modules>
+
+  <properties>
+    <!-- Java 17: lo que piden Spring Boot 3 y Vaadin 24 (corre en JDK 25). -->
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Versiones fijas y verificadas en Maven Central -->
+    <version.commons-csv>1.14.1</version.commons-csv>
+    <version.commons-math>3.6.1</version.commons-math>
+  </properties>
+</project>

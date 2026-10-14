@@ -1,0 +1,10 @@
+# Compilados y dependencias descargadas
+target/
+*.jar
+# Base de datos local (se regenera sola desde los CSV semilla)
+mercado.db
+# Logs
+*.log
+# Node.js que Vaadin descarga solo para la parte visual
+node_modules/
+node/

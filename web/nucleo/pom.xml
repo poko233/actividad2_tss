@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ======================================================================
+     NÚCLEO: librería Java pura con la lógica de análisis.
+     A propósito NO depende de Spring ni Vaadin: así se puede probar
+     y entender sin servidor. Solo dos librerías delegadas:
+       commons-csv  -> leer/escribir CSV (adiós parser manual).
+       commons-math -> media, mediana, desv, chi², t-Student (adiós
+                       fórmulas a mano).
+     ====================================================================== -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>bo.umss.mercado</groupId>
+    <artifactId>mercado-umss</artifactId>
+    <version>1.0.0</version>
+  </parent>
+
+  <artifactId>mercado-nucleo</artifactId>
+  <name>Mercado UMSS - Núcleo de análisis</name>
+
+  <dependencies>
+    <!-- Lee y escribe CSV con comillas, tildes y saltos de línea -->
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-csv</artifactId>
+      <version>${version.commons-csv}</version>
+    </dependency>
+    <!-- Estadística lista: promedios, chi², distribuciones -->
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-math3</artifactId>
+      <version>${version.commons-math}</version>
+    </dependency>
+  </dependencies>
+</project>
