@@ -2,27 +2,31 @@ package bo.umss.mercado.servidor.vista;
 
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 /**
- * GraficoCanvas: utilitario para dibujar gráficos estadísticos con canvas puro
- * (sin librerías externas como Chart.js).
+ * GraficoCanvas: graficos estadisticos dibujados con SVG generado en Java.
  *
- * POR QUÉ SE USA ".replace()" Y NO "String.formatted()":
- * el código JavaScript contiene el operador módulo (%) —por ejemplo
- * "colores[i % colores.length]"—. Si ese texto pasara por String.format(),
- * Java lo interpretaría como un especificador de formato y lanzaría
- * FormatFlagsConversionMismatchException. Por eso aquí los valores se
- * inyectan con marcadores @@NOMBRE@@ y luego se reemplazan con
- * String.replace(), que no interpreta nada.
+ * POR QUE SVG Y NO CANVAS:
+ * el canvas necesita JavaScript que se ejecute DESPUES de que el navegador
+ * ya dibujo el elemento, y ademas necesita un elemento <canvas> real (con
+ * un <div> el navegador responde "c.getContext is not a function"). Con SVG
+ * el grafico viaja dentro del HTML que el servidor manda, asi que SIEMPRE
+ * se ve, sin depender de JavaScript ni de sincronismos.
  *
- * Cada método devuelve un Componente de Vaadin listo para insertar en una vista:
- * crea un <div> con el <canvas> y ejecuta el JavaScript al adjuntarse.
+ * QUE GRAFICOS HACE:
+ *   - barrasVerticales(): histogramas y frecuencias.
+ *   - torta():           proporciones (pie chart con segmentos circulares).
+ *   - mapaCalor():       tablas de contingencia coloreadas por intensidad.
+ *   - radar():           los 10 items Likert de la encuesta a empleadores.
  */
 public class GraficoCanvas {
 
-    // Paleta simple y legible para todos los gráficos.
+    // Paleta simple y legible para todos los graficos.
     public static final String COLOR_PRINCIPAL = "#0b3d62";
     public static final String COLOR_SECUNDARIO = "#0984e3";
     public static final String COLOR_VERDE = "#27ae60";
@@ -30,376 +34,302 @@ public class GraficoCanvas {
     public static final String COLOR_MORADO = "#6c5ce7";
     public static final String COLOR_GRIS = "#b2bec3";
 
-    // Paleta para tortas (se repiten si hay más categorías que colores).
+    // Paleta para tortas (se repiten si hay mas categorias que colores).
     public static final String[] COLORES_TORTA = {
             COLOR_PRINCIPAL, COLOR_SECUNDARIO, COLOR_VERDE,
             COLOR_NARANJA, COLOR_MORADO, COLOR_GRIS
     };
 
     // ------------------------------------------------------------------------
-    // barrasVerticales(): gráfico de barras verticales (histogramas, frecuencias).
-    //   id        : identificador único del canvas en el DOM
-    //   datos     : valores numéricos (uno por categoría)
-    //   etiquetas : nombres de las categorías
+    // barrasVerticales(): barras verticales (histogramas, frecuencias).
+    //   id        : identificador del grafico (accesibilidad)
+    //   datos     : valores numericos (uno por categoria)
+    //   etiquetas : nombres de las categorias
     //   color     : color de las barras
-    //   titulo    : título que se dibuja dentro del gráfico
+    //   titulo    : titulo del grafico
     // ------------------------------------------------------------------------
     public static Component barrasVerticales(String id, int[] datos, String[] etiquetas,
             String color, String titulo) {
-        Div contenedor = new Div();
-        contenedor.setId(id);
-        contenedor.getStyle().set("width", "100%").set("max-width", "760px")
-                .set("margin", "10px 0");
+        final int ancho = 700;
+        final int alto = 320;
+        final int margenIzquierdo = 50;
+        final int margenDerecho = 15;
+        final int margenSuperior = 40;
+        final int margenInferior = 80;
+        final int anchoUtil = ancho - margenIzquierdo - margenDerecho;
+        final int altoUtil = alto - margenSuperior - margenInferior;
 
-        Span lblTitulo = new Span(titulo);
-        lblTitulo.getStyle().set("font-weight", "bold").set("font-size", "16px")
-                .set("margin-bottom", "8px").set("display", "block");
+        double maximo = 1;
+        for (int dato : datos) {
+            maximo = Math.max(maximo, dato);
+        }
+        int cantidad = datos.length;
+        double paso = (double) anchoUtil / Math.max(1, cantidad);
+        double anchoBarra = paso * 0.7;
 
-        Div canvasWrap = new Div();
-        canvasWrap.setId(id + "-canvas");
-        canvasWrap.getStyle().set("width", "100%").set("height", "300px");
+        StringBuilder svg = iniciarSvg(ancho, alto, titulo);
 
-        contenedor.add(lblTitulo, canvasWrap);
+        // Ejes
+        svg.append(linea(numero(margenIzquierdo), numero(margenSuperior),
+                numero(margenIzquierdo), numero(margenSuperior + altoUtil), "#cbd5e1"));
+        svg.append(linea(numero(margenIzquierdo), numero(margenSuperior + altoUtil),
+                numero(ancho - margenDerecho), numero(margenSuperior + altoUtil), "#cbd5e1"));
 
-        // Script con marcadores @@@@ (Java NO interpreta % dentro de él).
-        String script = """
-                (function(){
-                  var c = document.getElementById('@@ID@@');
-                  if(!c) return;
-                  var g = c.getContext('2d');
-                  var w = c.parentElement.clientWidth || 700;
-                  var h = 300;
-                  c.width = w; c.height = h;
-                  g.fillStyle = '#ffffff'; g.fillRect(0,0,w,h);
-                  var datos = @@DATOS@@;
-                  var etiquetas = @@ETIQUETAS@@;
-                  var color = '@@COLOR@@';
-                  var titulo = '@@TITULO@@';
-                  var mx = Math.max.apply(null, datos.concat([1]));
-                  var n = datos.length;
-                  var bw = (w - 90) / (n * 1.5);
-                  for(var i=0;i<n;i++){
-                    var bh = (h - 60) * (datos[i]/mx);
-                    var x = 50 + i * 1.5 * bw;
-                    var y = h - 40 - bh;
-                    g.fillStyle = color; g.fillRect(x, y, bw - 4, bh);
-                    g.fillStyle = '#1c2733'; g.font = '14px Arial';
-                    g.fillText(String(datos[i]), x, y - 6);
-                    g.save(); g.translate(x + bw/2, h - 25); g.rotate(-Math.PI/6);
-                    g.fillText(etiquetas[i], 5, 5); g.restore();
-                  }
-                  g.fillStyle = '#1c2733'; g.font = '16px Arial';
-                  g.fillText(titulo, 10, 30);
-                })();
-                """;
+        for (int i = 0; i < cantidad; i++) {
+            double alturaBarra = (datos[i] / maximo) * altoUtil;
+            double x = margenIzquierdo + i * paso + (paso - anchoBarra) / 2;
+            double y = margenSuperior + altoUtil - alturaBarra;
+            String etiqueta = i < etiquetas.length ? etiquetas[i] : ("#" + i);
 
-        script = script
-                .replace("@@ID@@", id + "-canvas")
-                .replace("@@DATOS@@", arrayToJs(datos))
-                .replace("@@ETIQUETAS@@", arrayStringsToJs(etiquetas))
-                .replace("@@COLOR@@", color)
-                .replace("@@TITULO@@", titulo);
+            // La barra, con title para el tooltip al pasar el mouse.
+            svg.append("<rect x='").append(numero(x))
+                    .append("' y='").append(numero(y))
+                    .append("' width='").append(numero(anchoBarra))
+                    .append("' height='").append(numero(alturaBarra))
+                    .append("' fill='").append(color).append("'>")
+                    .append("<title>").append(escapar(etiqueta)).append(": ")
+                    .append(datos[i]).append("</title></rect>");
 
-        return adjuntarScript(contenedor, script);
+            // El valor encima de la barra.
+            svg.append(texto(numero(x + anchoBarra / 2), numero(y - 6),
+                    String.valueOf(datos[i]), 12, "#1c2733", "middle"));
+
+            // La etiqueta de la categoria (rotada para que no se encimene).
+            svg.append("<text transform='translate(").append(numero(x + anchoBarra / 2))
+                    .append(",").append(margenSuperior + altoUtil + 12)
+                    .append(") rotate(-35)' font-family='Arial' font-size='11' ")
+                    .append("fill='#1c2733' text-anchor='end'>")
+                    .append(escapar(etiqueta)).append("</text>");
+        }
+        svg.append("</svg>");
+        return contenedorConSvg(svg.toString(), titulo);
     }
 
     // ------------------------------------------------------------------------
-    // torta(): gráfico circular (pie chart) con leyenda.
-    //   datos    : valores numéricos
-    //   etiquetas: nombres de las categorías
+    // torta(): grafico circular de proporciones.
+    //   datos    : valores numericos
+    //   etiquetas: nombres de las categorias
     //   colores  : color de cada segmento (se repiten si no alcanzan)
-    //   titulo   : título del gráfico
+    //   titulo   : titulo del grafico
     // ------------------------------------------------------------------------
     public static Component torta(String id, int[] datos, String[] etiquetas,
             String[] colores, String titulo) {
-        Div contenedor = new Div();
-        contenedor.setId(id);
-        contenedor.getStyle().set("width", "100%").set("max-width", "460px")
-                .set("margin", "10px 0");
+        final int ancho = 460;
+        final int alto = 320;
+        final double centroX = 135;
+        final double centroY = 160;
+        final double radio = 95;
+        final double grosor = 46;
+        final double circunferencia = 2 * Math.PI * radio;
 
-        Span lblTitulo = new Span(titulo);
-        lblTitulo.getStyle().set("font-weight", "bold").set("font-size", "16px")
-                .set("margin-bottom", "8px").set("display", "block");
+        double total = 0;
+        for (int dato : datos) {
+            total = total + dato;
+        }
+        if (total == 0) {
+            total = 1;
+        }
 
-        Div canvasWrap = new Div();
-        canvasWrap.setId(id + "-canvas");
-        canvasWrap.getStyle().set("width", "100%").set("height", "300px");
+        StringBuilder svg = iniciarSvg(ancho, alto, titulo);
 
-        contenedor.add(lblTitulo, canvasWrap);
+        // Cada segmento es un circulo con dasharray (el truco estandar para
+        // hacer arcos en SVG sin calcular coordenadas de curva).
+        double acumulado = 0;
+        for (int i = 0; i < datos.length; i++) {
+            double largoSegmento = (datos[i] / total) * circunferencia;
+            String colorSegmento = colores[i % colores.length];
+            String etiqueta = i < etiquetas.length ? etiquetas[i] : ("#" + i);
+            double porcentaje = Math.round(1000.0 * datos[i] / total) / 10.0;
 
-        String script = """
-                (function(){
-                  var c = document.getElementById('@@ID@@');
-                  if(!c) return;
-                  var g = c.getContext('2d');
-                  var w = c.parentElement.clientWidth || 400;
-                  var h = 300;
-                  c.width = w; c.height = h;
-                  g.fillStyle = '#ffffff'; g.fillRect(0,0,w,h);
-                  var datos = @@DATOS@@;
-                  var etiquetas = @@ETIQUETAS@@;
-                  var colores = @@COLORES@@;
-                  var titulo = '@@TITULO@@';
-                  var total = 0;
-                  for(var i=0;i<datos.length;i++){ total = total + datos[i]; }
-                  if(total === 0){ total = 1; }
-                  var cx = w/2, cy = h/2 - 10, R = Math.min(w,h)/2 - 45;
-                  var ang = -Math.PI/2;
-                  for(var i=0;i<datos.length;i++){
-                    var a2 = ang + 2*Math.PI*(datos[i]/total);
-                    g.beginPath(); g.moveTo(cx,cy); g.arc(cx,cy,R,ang,a2); g.closePath();
-                    g.fillStyle = colores[i % colores.length]; g.fill();
-                    g.strokeStyle = '#ffffff'; g.lineWidth=2; g.stroke();
-                    ang = a2;
-                  }
-                  g.fillStyle = '#1c2733'; g.font = '16px Arial';
-                  g.fillText(titulo, 10, 30);
-                  var ly = 50;
-                  for(var i=0;i<etiquetas.length;i++){
-                    g.fillStyle = colores[i % colores.length];
-                    g.fillRect(10, ly, 14, 14);
-                    g.fillStyle = '#1c2733'; g.font = '14px Arial';
-                    g.fillText(etiquetas[i] + ' ' + Math.round(100*datos[i]/total) + ' pct', 30, ly + 12);
-                    ly += 22;
-                  }
-                })();
-                """;
+            svg.append("<circle cx='").append(numero(centroX))
+                    .append("' cy='").append(numero(centroY))
+                    .append("' r='").append(numero(radio))
+                    .append("' fill='none' stroke='").append(colorSegmento)
+                    .append("' stroke-width='").append(numero(grosor))
+                    .append("' stroke-dasharray='").append(numero(largoSegmento))
+                    .append(" ").append(numero(circunferencia - largoSegmento))
+                    .append("' stroke-dashoffset='").append(numero(-acumulado))
+                    .append("' transform='rotate(-90 ")
+                    .append(numero(centroX)).append(" ").append(numero(centroY)).append(")'>")
+                    .append("<title>").append(escapar(etiqueta)).append(": ")
+                    .append(datos[i]).append(" (").append(numero(porcentaje))
+                    .append(" pct)</title></circle>");
+            acumulado = acumulado + largoSegmento;
+        }
 
-        script = script
-                .replace("@@ID@@", id + "-canvas")
-                .replace("@@DATOS@@", arrayToJs(datos))
-                .replace("@@ETIQUETAS@@", arrayStringsToJs(etiquetas))
-                .replace("@@COLORES@@", arrayStringsToJs(colores))
-                .replace("@@TITULO@@", titulo);
-
-        return adjuntarScript(contenedor, script);
+        // Leyenda a la derecha.
+        double y = 45;
+        for (int i = 0; i < datos.length; i++) {
+            String etiqueta = i < etiquetas.length ? etiquetas[i] : ("#" + i);
+            double porcentaje = Math.round(1000.0 * datos[i] / total) / 10.0;
+            svg.append("<rect x='265' y='").append(numero(y - 11))
+                    .append("' width='13' height='13' fill='")
+                    .append(colores[i % colores.length]).append("'/>");
+            svg.append(texto("278", numero(y), etiqueta + "  " + numero(porcentaje) + "%",
+                    12, "#1c2733", "start"));
+            y = y + 22;
+        }
+        svg.append("</svg>");
+        return contenedorConSvg(svg.toString(), titulo);
     }
 
     // ------------------------------------------------------------------------
-    // mapaCalor(): matriz de calor (heatmap) de una tabla de contingencia.
+    // mapaCalor(): matriz de calor de una tabla de contingencia.
     //   obs  : matriz de conteos [filas][columnas]
     //   filas: nombres de las filas
     //   cols : nombres de las columnas
     // ------------------------------------------------------------------------
     public static Component mapaCalor(String id, int[][] obs, String[] filas,
             String[] cols, String titulo) {
-        Div contenedor = new Div();
-        contenedor.setId(id);
-        contenedor.getStyle().set("width", "100%").set("max-width", "820px")
-                .set("margin", "10px 0");
+        final int ancho = 780;
+        final int alto = 330;
+        final int margenIzquierdo = 165;
+        final int margenSuperior = 35;
 
-        Span lblTitulo = new Span(titulo);
-        lblTitulo.getStyle().set("font-weight", "bold").set("font-size", "16px")
-                .set("margin-bottom", "8px").set("display", "block");
+        int maximo = 1;
+        for (int[] fila : obs) {
+            for (int valor : fila) {
+                maximo = Math.max(maximo, valor);
+            }
+        }
+        int cantidadFilas = Math.max(1, filas.length);
+        int cantidadColumnas = Math.max(1, cols.length);
+        int anchoUtil = ancho - margenIzquierdo - 20;
+        int altoUtil = alto - margenSuperior - 60;
+        double anchoCelda = (double) anchoUtil / cantidadColumnas;
+        double altoCelda = (double) altoUtil / cantidadFilas;
 
-        Div canvasWrap = new Div();
-        canvasWrap.setId(id + "-canvas");
-        canvasWrap.getStyle().set("width", "100%").set("height", "320px");
+        StringBuilder svg = iniciarSvg(ancho, alto, titulo);
 
-        contenedor.add(lblTitulo, canvasWrap);
+        for (int f = 0; f < obs.length; f++) {
+            for (int c = 0; c < obs[f].length; c++) {
+                double intensidad = obs[f][c] / (double) maximo;
+                int rojo = (int) Math.round(11 + intensidad * 200);
+                int verde = (int) Math.round(61 + intensidad * 100);
+                int azul = (int) Math.round(98 + intensidad * 60);
+                String colorCelda = "rgb(" + rojo + "," + verde + "," + azul + ")";
+                String colorTexto = intensidad > 0.5 ? "#ffffff" : "#1c2733";
+                String nombreFila = f < filas.length ? filas[f] : ("#" + f);
+                String nombreColumna = c < cols.length ? cols[c] : ("#" + c);
 
-        String script = """
-                (function(){
-                  var c = document.getElementById('@@ID@@');
-                  if(!c) return;
-                  var g = c.getContext('2d');
-                  var w = c.parentElement.clientWidth || 700;
-                  var h = 320;
-                  c.width = w; c.height = h;
-                  g.fillStyle = '#ffffff'; g.fillRect(0,0,w,h);
-                  var obs = @@OBS@@;
-                  var filas = @@FILAS@@;
-                  var cols = @@COLS@@;
-                  var titulo = '@@TITULO@@';
-                  var f = filas.length, nc = cols.length;
-                  var mx = 1;
-                  obs.forEach(function(r){ r.forEach(function(v){ if(v > mx) mx = v; }); });
-                  var cw = (w - 170)/Math.max(1,nc);
-                  var rh = (h - 70)/Math.max(1,f);
-                  for(var i=0;i<f;i++){
-                    for(var j=0;j<nc;j++){
-                      var t = obs[i][j]/mx;
-                      var r = Math.round(11 + t*200);
-                      var gg = Math.round(61 + t*100);
-                      var b = Math.round(98 + t*60);
-                      g.fillStyle = 'rgb(' + r + ',' + gg + ',' + b + ')';
-                      g.fillRect(160 + j*cw, 10 + i*rh, cw-4, rh-6);
-                      g.fillStyle = (t > 0.5) ? '#ffffff' : '#1c2733';
-                      g.font = '12px Arial';
-                      g.fillText(String(obs[i][j]), 160 + j*cw + 6, 10 + i*rh + rh/2 + 5);
-                    }
-                  }
-                  g.fillStyle = '#1c2733'; g.font = '14px Arial';
-                  for(var i=0;i<f;i++){ g.fillText(filas[i], 5, 30 + i*rh + rh/2); }
-                  for(var j=0;j<nc;j++){
-                    g.save(); g.translate(160 + j*cw + cw/2, h - 12);
-                    g.rotate(-Math.PI/4); g.fillText(cols[j], 5, 5); g.restore();
-                  }
-                  g.fillStyle = '#1c2733'; g.font = '16px Arial';
-                  g.fillText(titulo, 10, 30);
-                })();
-                """;
+                svg.append("<rect x='").append(numero(margenIzquierdo + c * anchoCelda))
+                        .append("' y='").append(numero(margenSuperior + f * altoCelda))
+                        .append("' width='").append(numero(anchoCelda - 3))
+                        .append("' height='").append(numero(altoCelda - 4))
+                        .append("' fill='").append(colorCelda).append("'>")
+                        .append("<title>").append(escapar(nombreFila)).append(" / ")
+                        .append(escapar(nombreColumna)).append(": ")
+                        .append(obs[f][c]).append("</title></rect>");
+                svg.append(texto(
+                        numero(margenIzquierdo + c * anchoCelda + anchoCelda / 2 - 1),
+                        numero(margenSuperior + f * altoCelda + altoCelda / 2 + 4),
+                        String.valueOf(obs[f][c]), 12, colorTexto, "middle"));
+            }
+        }
 
-        script = script
-                .replace("@@ID@@", id + "-canvas")
-                .replace("@@OBS@@", matrizToJs(obs))
-                .replace("@@FILAS@@", arrayStringsToJs(filas))
-                .replace("@@COLS@@", arrayStringsToJs(cols))
-                .replace("@@TITULO@@", titulo);
+        // Etiquetas de las filas (a la izquierda).
+        for (int f = 0; f < filas.length; f++) {
+            svg.append(texto("6", numero(margenSuperior + f * altoCelda + altoCelda / 2 + 4),
+                    filas[f], 12, "#1c2733", "start"));
+        }
 
-        return adjuntarScript(contenedor, script);
+        // Etiquetas de las columnas (abajo, rotadas).
+        for (int c = 0; c < cols.length; c++) {
+            svg.append("<text transform='translate(")
+                    .append(numero(margenIzquierdo + c * anchoCelda + anchoCelda / 2))
+                    .append(",").append(margenSuperior + altoUtil + 12)
+                    .append(") rotate(-40)' font-family='Arial' font-size='11' ")
+                    .append("fill='#1c2733' text-anchor='end'>")
+                    .append(escapar(cols[c])).append("</text>");
+        }
+        svg.append("</svg>");
+        return contenedorConSvg(svg.toString(), titulo);
     }
 
     // ------------------------------------------------------------------------
-    // radar(): diagrama de radar para puntajes de 1 a 4 (los 10 ítems Likert
+    // radar(): diagrama de radar para puntajes de 1 a 4 (los 10 items Likert
     // de la encuesta a empleadores, pedido por la HU5).
-    //   valores  : puntajes (uno por categoría)
-    //   etiquetas: nombres de las categorías
+    //   valores  : puntajes (uno por categoria)
+    //   etiquetas: nombres de las categorias
     // ------------------------------------------------------------------------
     public static Component radar(String id, double[] valores, String[] etiquetas,
             String titulo) {
-        Div contenedor = new Div();
-        contenedor.setId(id);
-        contenedor.getStyle().set("width", "100%").set("max-width", "480px")
-                .set("margin", "10px 0");
+        final int ancho = 480;
+        final int alto = 360;
+        final double centroX = 235;
+        final double centroY = 175;
+        final double radio = 110;
 
-        Span lblTitulo = new Span(titulo);
-        lblTitulo.getStyle().set("font-weight", "bold").set("font-size", "16px")
-                .set("margin-bottom", "8px").set("display", "block");
-
-        Div canvasWrap = new Div();
-        canvasWrap.setId(id + "-canvas");
-        canvasWrap.getStyle().set("width", "100%").set("height", "320px");
-
-        contenedor.add(lblTitulo, canvasWrap);
-
-        String script = """
-                (function(){
-                  var c = document.getElementById('@@ID@@');
-                  if(!c) return;
-                  var g = c.getContext('2d');
-                  var w = c.parentElement.clientWidth || 400;
-                  var h = 320;
-                  c.width = w; c.height = h;
-                  g.fillStyle = '#ffffff'; g.fillRect(0,0,w,h);
-                  var valores = @@VALORES@@;
-                  var etiquetas = @@ETIQUETAS@@;
-                  var titulo = '@@TITULO@@';
-                  var n = valores.length;
-                  if(n < 3){ return; }
-                  var cx = w/2, cy = h/2 - 15, R = Math.min(w,h)/2 - 55;
-                  for(var ring=1; ring<=4; ring++){
-                    g.beginPath(); g.strokeStyle = '#dfe6ee'; g.lineWidth = 1;
-                    for(var i=0;i<=n;i++){
-                      var an = -Math.PI/2 + i*2*Math.PI/n;
-                      var x = cx + R*(ring/4)*Math.cos(an);
-                      var y = cy + R*(ring/4)*Math.sin(an);
-                      if(i===0){ g.moveTo(x,y); } else { g.lineTo(x,y); }
-                    } g.stroke();
-                  }
-                  g.beginPath(); g.strokeStyle = '#0b3d62'; g.lineWidth = 3;
-                  g.fillStyle = 'rgba(9,132,227,0.25)';
-                  for(var i=0;i<n;i++){
-                    var an = -Math.PI/2 + i*2*Math.PI/n;
-                    var r = R*(valores[i]/4);
-                    var x = cx + r*Math.cos(an);
-                    var y = cy + r*Math.sin(an);
-                    if(i===0){ g.moveTo(x,y); } else { g.lineTo(x,y); }
-                  } g.closePath(); g.stroke(); g.fill();
-                  g.fillStyle = '#1c2733'; g.font = '13px Arial';
-                  for(var i=0;i<n;i++){
-                    var an = -Math.PI/2 + i*2*Math.PI/n;
-                    var x = cx + R*1.18*Math.cos(an);
-                    var y = cy + R*1.18*Math.sin(an);
-                    g.fillText(etiquetas[i], x - 30, y + 5);
-                  }
-                  g.fillStyle = '#1c2733'; g.font = '16px Arial';
-                  g.fillText(titulo, 10, 30);
-                })();
-                """;
-
-        script = script
-                .replace("@@ID@@", id + "-canvas")
-                .replace("@@VALORES@@", arrayDoublesToJs(valores))
-                .replace("@@ETIQUETAS@@", arrayStringsToJs(etiquetas))
-                .replace("@@TITULO@@", titulo);
-
-        return adjuntarScript(contenedor, script);
-    }
-
-    // ------------------------------------------------------------------------
-    // adjuntarScript(): conecta el componente al JavaScript cuando se dibuja.
-    // ------------------------------------------------------------------------
-    private static Component adjuntarScript(Div contenedor, String script) {
-        contenedor.addAttachListener(evento -> {
-            com.vaadin.flow.component.UI interfaz = evento.getUI();
-            if (interfaz != null) {
-                interfaz.getPage().executeJs(script);
-            }
-        });
-        return contenedor;
-    }
-
-    // ------------------------------------------------------------------------
-    // Helpers: convierten arrays Java a texto JavaScript.
-    // ------------------------------------------------------------------------
-    private static String arrayToJs(int[] datos) {
-        StringBuilder texto = new StringBuilder("[");
-        for (int i = 0; i < datos.length; i++) {
-            if (i > 0) {
-                texto.append(",");
-            }
-            texto.append(datos[i]);
+        StringBuilder svg = iniciarSvg(ancho, alto, titulo);
+        int cantidad = valores.length;
+        if (cantidad < 3) {
+            svg.append(texto("20", "60", "Se necesitan al menos 3 categorias", 13,
+                    "#888888", "start"));
+            svg.append("</svg>");
+            return contenedorConSvg(svg.toString(), titulo);
         }
-        return texto.append("]").toString();
-    }
 
-    private static String arrayDoublesToJs(double[] datos) {
-        StringBuilder texto = new StringBuilder("[");
-        for (int i = 0; i < datos.length; i++) {
-            if (i > 0) {
-                texto.append(",");
+        // Anillos (uno por nivel de la escala 1-4).
+        for (int nivel = 1; nivel <= 4; nivel++) {
+            StringBuilder puntos = new StringBuilder();
+            for (int i = 0; i < cantidad; i++) {
+                double angulo = -Math.PI / 2 + i * 2 * Math.PI / cantidad;
+                double x = centroX + radio * (nivel / 4.0) * Math.cos(angulo);
+                double y = centroY + radio * (nivel / 4.0) * Math.sin(angulo);
+                puntos.append(i == 0 ? "M" : "L").append(numero(x)).append(",")
+                        .append(numero(y)).append(" ");
             }
-            // Redondeo a 2 decimales sin usar String.format (evita líos con %).
-            double valor = Math.round(datos[i] * 100.0) / 100.0;
-            texto.append(valor);
+            puntos.append("Z");
+            svg.append("<path d='").append(puntos)
+                    .append("' fill='none' stroke='#dfe6ee' stroke-width='1'/>");
         }
-        return texto.append("]").toString();
-    }
 
-    private static String arrayStringsToJs(String[] datos) {
-        StringBuilder texto = new StringBuilder("[");
-        for (int i = 0; i < datos.length; i++) {
-            if (i > 0) {
-                texto.append(",");
-            }
-            texto.append('"');
-            texto.append(datos[i].replace("\\", "\\\\").replace("\"", "\\\""));
-            texto.append('"');
+        // Ejes hacia cada categoria.
+        for (int i = 0; i < cantidad; i++) {
+            double angulo = -Math.PI / 2 + i * 2 * Math.PI / cantidad;
+            double x = centroX + radio * Math.cos(angulo);
+            double y = centroY + radio * Math.sin(angulo);
+            svg.append(linea(numero(centroX), numero(centroY), numero(x), numero(y), "#e8edf3"));
         }
-        return texto.append("]").toString();
-    }
 
-    private static String matrizToJs(int[][] matriz) {
-        StringBuilder texto = new StringBuilder("[");
-        for (int i = 0; i < matriz.length; i++) {
-            if (i > 0) {
-                texto.append(",");
-            }
-            texto.append("[");
-            for (int j = 0; j < matriz[i].length; j++) {
-                if (j > 0) {
-                    texto.append(",");
-                }
-                texto.append(matriz[i][j]);
-            }
-            texto.append("]");
+        // Poligono con los datos.
+        StringBuilder puntos = new StringBuilder();
+        for (int i = 0; i < cantidad; i++) {
+            double angulo = -Math.PI / 2 + i * 2 * Math.PI / cantidad;
+            double distancia = radio * (valores[i] / 4.0);
+            double x = centroX + distancia * Math.cos(angulo);
+            double y = centroY + distancia * Math.sin(angulo);
+            puntos.append(i == 0 ? "M" : "L").append(numero(x)).append(",")
+                    .append(numero(y)).append(" ");
         }
-        return texto.append("]").toString();
+        puntos.append("Z");
+        svg.append("<path d='").append(puntos)
+                .append("' fill='rgba(9,132,227,0.25)' stroke='#0b3d62' ")
+                .append("stroke-width='3'/>");
+
+        // Marcadores y etiquetas de cada eje.
+        for (int i = 0; i < cantidad; i++) {
+            double angulo = -Math.PI / 2 + i * 2 * Math.PI / cantidad;
+            double distancia = radio * (valores[i] / 4.0);
+            double x = centroX + distancia * Math.cos(angulo);
+            double y = centroY + distancia * Math.sin(angulo);
+            String etiqueta = i < etiquetas.length ? etiquetas[i] : ("#" + i);
+            svg.append("<circle cx='").append(numero(x)).append("' cy='")
+                    .append(numero(y)).append("' r='4' fill='#0b3d62'>")
+                    .append("<title>").append(escapar(etiqueta)).append(": ")
+                    .append(numero(Math.round(valores[i] * 100.0) / 100.0))
+                    .append(" de 4</title></circle>");
+            double xEtiqueta = centroX + radio * 1.22 * Math.cos(angulo);
+            double yEtiqueta = centroY + radio * 1.22 * Math.sin(angulo);
+            svg.append(texto(numero(xEtiqueta - 30), numero(yEtiqueta + 4),
+                    etiqueta, 11, "#1c2733", "middle"));
+        }
+        svg.append("</svg>");
+        return contenedorConSvg(svg.toString(), titulo);
     }
 
     // ------------------------------------------------------------------------
-    // enTarjeta(): envuelve un gráfico en una tarjeta blanca con título.
+    // enTarjeta(): envuelve un grafico en una tarjeta blanca con titulo.
     // ------------------------------------------------------------------------
     public static Component enTarjeta(Component contenido, String tituloTarjeta) {
         VerticalLayout tarjeta = new VerticalLayout(contenido);
@@ -415,5 +345,74 @@ public class GraficoCanvas {
             tarjeta.addComponentAtIndex(0, titulo);
         }
         return tarjeta;
+    }
+
+    // ------------------------------------------------------------------------
+    // Helpers privados (construccion del SVG).
+    // ------------------------------------------------------------------------
+
+    // iniciarSvg(): devuelve el StringBuilder con la cabecera del SVG
+    // (viewBox responsivo + titulo). Se sigue con .append(...) y al final
+    // se pasa a contenedorConSvg(svg.toString(), titulo).
+    private static StringBuilder iniciarSvg(int ancho, int alto, String titulo) {
+        return new StringBuilder()
+                .append("<svg viewBox='0 0 ").append(ancho).append(" ").append(alto)
+                .append("' preserveAspectRatio='xMidYMid meet' ")
+                .append("style='width:100%;height:auto;background:#ffffff' ")
+                .append("role='img' aria-label='").append(escapar(titulo)).append("'>")
+                .append("<text x='12' y='24' font-family='Arial' font-size='15' ")
+                .append("fill='#1c2733'>").append(escapar(titulo)).append("</text>");
+    }
+
+    private static String linea(String x1, String y1, String x2, String y2, String color) {
+        return "<line x1='" + x1 + "' y1='" + y1 + "' x2='" + x2
+                + "' y2='" + y2 + "' stroke='" + color + "' stroke-width='1'/>";
+    }
+
+    private static String texto(String x, String y, String contenido, int tamano,
+            String color, String ancla) {
+        return "<text x='" + x + "' y='" + y
+                + "' font-family='Arial' font-size='" + tamano + "' fill='" + color
+                + "' text-anchor='" + ancla + "'>" + escapar(contenido) + "</text>";
+    }
+
+    // contenedorConSvg(): muestra el SVG dentro de un <img> con un Data URI.
+    //
+    // POR QUE Data URI Y NO CANVAS:
+    //   - El SVG viaja dentro del HTML que el servidor manda, asi que el
+    //     grafico SIEMPRE se ve (no depende de que un JavaScript se ejecute
+    //     en el momento justo, que es lo que fallaba antes).
+    //   - Un <canvas> necesita JavaScript Y un elemento <canvas> real (con
+    //     un <div> el navegador responde "c.getContext is not a function").
+    //   - El SVG se dibuja con sus propios <text> y <rect>, sin CSS externo.
+    // El texto alternativo aparece al pasar el mouse por encima.
+    private static Component contenedorConSvg(String svg, String textoAlternativo) {
+        String codificado = Base64.getEncoder().encodeToString(
+                svg.getBytes(StandardCharsets.UTF_8));
+        Image imagen = new Image("data:image/svg+xml;base64," + codificado,
+                textoAlternativo);
+        imagen.getStyle().set("width", "100%").set("height", "auto")
+                .set("display", "block");
+        Div contenedor = new Div(imagen);
+        contenedor.getStyle().set("width", "100%")
+                .set("max-width", "820px")
+                .set("margin", "10px 0")
+                .set("overflow-x", "auto");
+        return contenedor;
+    }
+
+    // numero(): double -> texto con maximo 2 decimales (sin String.format,
+    // para no volver a tropezar con el simbolo %).
+    private static String numero(double valor) {
+        return String.valueOf(Math.round(valor * 100.0) / 100.0);
+    }
+
+    // escapar(): texto -> texto seguro dentro de XML/SVG.
+    private static String escapar(String texto) {
+        if (texto == null) {
+            return "";
+        }
+        return texto.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&#39;");
     }
 }

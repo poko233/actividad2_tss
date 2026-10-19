@@ -82,7 +82,23 @@ public class VistaEmpleadores extends VerticalLayout {
                         "% de empleadores que están de acuerdo (3 o 4) por ítem"),
                 "Gráfico [1]: Likert empleadores"));
 
-        // ---------- Gráfico [2]: Torta de tipo de organización ----------
+        // ---------- Gráfico [2]: Radar de los 10 ítems Likert (pedido por HU5) ----------
+        add(new H3("Radar de los 10 criterios institucionales"));
+        double[] puntajesLikert = new double[ITEMS_LIKERT.length / 2];
+        for (int i = 0; i < ITEMS_LIKERT.length; i += 2) {
+            List<Double> puntajes = analisis.likertDe(mapas, ITEMS_LIKERT[i]);
+            puntajesLikert[i / 2] = puntajes.isEmpty() ? 0
+                    : bo.umss.mercado.nucleo.stats.Numeros.promedio(puntajes);
+        }
+        add(GraficoCanvas.enTarjeta(
+                GraficoCanvas.radar(
+                        "radarLikert",
+                        puntajesLikert,
+                        nomsLikert,
+                        "Puntaje medio por criterio (escala 1-4)"),
+                "Gráfico [2]: Radar institucional"));
+
+        // ---------- Gráfico [3]: Torta de tipo de organización ----------
         add(new H3("Tipo de organización"));
         Map<String, Integer> frecTipo = bo.umss.mercado.nucleo.stats.Frecuencias
                 .contar(analisis.columnaDe(mapas, "tipo_organizacion"));
@@ -104,7 +120,7 @@ public class VistaEmpleadores extends VerticalLayout {
                         nomsTipo,
                         coloresTipo,
                         "Distribución por tipo de organización"),
-                "Gráfico [2]: Tipo de organización"));
+                "Gráfico [3]: Tipo de organización"));
 
         add(new H3("Competencias más mencionadas (texto libre)"));
         for (Map.Entry<String, Integer> competencia :
