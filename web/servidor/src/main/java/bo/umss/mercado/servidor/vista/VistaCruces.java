@@ -3,6 +3,7 @@ package bo.umss.mercado.servidor.vista;
 import bo.umss.mercado.nucleo.guia.GuiasLectura;
 import bo.umss.mercado.servidor.servicio.FichaCruce;
 import bo.umss.mercado.servidor.servicio.ServicioCruces;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Div;
@@ -10,15 +11,15 @@ import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.data.renderer.ComponentRenderer;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import java.util.ArrayList;
 import java.util.List;
 
-// VistaCruces: cada cruce en su sección — matriz de conteos pintada
-// como mapa de calor (más oscuro = más casos) + veredicto χ² en frase.
-// El color lo pone un renderer por celda: sin librerías de gráficos.
+/**
+ * VistaCruces: cada cruce en su sección — matriz de conteos pintada como
+ * mapa de calor (más oscuro = más casos) + veredicto χ² en frase.
+ */
 @Route(value = "cruces", layout = MainLayout.class)
 @PageTitle("Cruces χ² | Mercado UMSS")
 public class VistaCruces extends VerticalLayout {
@@ -50,45 +51,18 @@ public class VistaCruces extends VerticalLayout {
         return seccion;
     }
 
-    // mapaDeCalor(): Grid donde cada fila es [etiqueta, c1, c2, ...].
-    // La primera columna es texto; las demás se pintan según el conteo.
-    private Grid<List<String>> mapaDeCalor(FichaCruce cruce) {
-        int maximo = 1;
-        for (int[] fila : cruce.resultado().observados()) {
-            for (int valor : fila) {
-                maximo = Math.max(maximo, valor);
-            }
-        }
-        final int tope = maximo;
-        List<List<String>> filas = new ArrayList<>();
-        for (int f = 0; f < cruce.resultado().filas().size(); f++) {
-            List<String> fila = new ArrayList<>();
-            fila.add(cruce.resultado().filas().get(f));
-            for (int c = 0; c < cruce.resultado().columnas().size(); c++) {
-                fila.add(String.valueOf(cruce.resultado().observados()[f][c]));
-            }
-            filas.add(fila);
-        }
-        Grid<List<String>> tabla = new Grid<>();
-        tabla.addColumn(fila -> fila.get(0)).setHeader("");
-        for (int c = 0; c < cruce.resultado().columnas().size(); c++) {
-            final int indice = c + 1;
-            String tituloColumna = cruce.resultado().columnas().get(c);
-            // Celda coloreada: intensidad = conteo / máximo.
-            tabla.addColumn(new ComponentRenderer<>(Div::new,
-                    (celda, fila) -> {
-                        int conteo = Integer.parseInt(fila.get(indice));
-                        celda.setText(fila.get(indice));
-                        int azul = 98 + (int) (157.0 * conteo / tope);
-                        celda.getStyle().set("background",
-                                "rgb(11,61," + azul + ")");
-                        celda.getStyle().set("color", "white");
-                        celda.getStyle().set("text-align", "center");
-                        celda.setWidthFull();
-                    })).setHeader(tituloColumna);
-        }
-        tabla.setItems(filas);
-        tabla.setWidthFull();
-        return tabla;
+    // mapaDeCalor(): usa GraficoCanvas.mapaCalor() para dibujar la matriz.
+    private Component mapaDeCalor(FichaCruce cruce) {
+        int[][] obs = cruce.resultado().observados();
+        String[] filas = cruce.resultado().filas()
+                .toArray(new String[0]);
+        String[] cols = cruce.resultado().columnas()
+                .toArray(new String[0]);
+        return GraficoCanvas.enTarjeta(
+                GraficoCanvas.mapaCalor(
+                        "heatmap_" + cruce.etiqueta().replace(" ", "_"),
+                        obs, filas, cols,
+                        cruce.etiqueta()),
+                "Mapa de calor: " + cruce.etiqueta());
     }
 }

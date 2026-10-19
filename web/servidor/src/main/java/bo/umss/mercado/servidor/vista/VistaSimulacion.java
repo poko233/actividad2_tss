@@ -16,9 +16,11 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import java.util.List;
 
-// VistaSimulacion: botón para correr los 5 escenarios + tabla de
-// pronósticos con frase simple + historial guardado en la base.
-// Cada clic guarda una corrida nueva (queda registrada con fecha).
+/**
+ * VistaSimulacion: botón para correr los 5 escenarios + tabla de
+ * pronósticos con frase simple + historial guardado en la base.
+ * Cada clic guarda una corrida nueva (queda registrada con fecha).
+ */
 @Route(value = "simulacion", layout = MainLayout.class)
 @PageTitle("Simulación | Mercado UMSS")
 public class VistaSimulacion extends VerticalLayout {

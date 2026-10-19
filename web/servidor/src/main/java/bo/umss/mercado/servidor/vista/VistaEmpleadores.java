@@ -12,39 +12,38 @@ import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
-import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.progressbar.ProgressBar;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-// VistaEmpleadores: tabla de empresas + las 10 barras de acuerdo
-// institucional + competencias más mencionadas en texto libre.
-// acuerdo% = % que marcó 3 (parcialmente) o 4 (totalmente).
+/**
+ * VistaEmpleadores: tabla de empresas + barras de acuerdo institucional
+ * por ítem Likert + torta de tipo de organización + competencias más
+ * mencionadas en texto libre.
+ */
 @Route(value = "empleadores", layout = MainLayout.class)
 @PageTitle("Empleadores | Mercado UMSS")
 public class VistaEmpleadores extends VerticalLayout {
 
-    // Los 10 ítems Likert con nombre corto para la pantalla.
-    private static final List<String[]> ITEMS_LIKERT = List.of(
-            new String[]{"likert_confianza_formadora", "Confianza formadora"},
-            new String[]{"likert_consistencia_titulo", "Consistencia título"},
-            new String[]{"likert_consulta_regular", "Consulta regular"},
-            new String[]{"likert_conoce_perfil", "Conoce perfil"},
-            new String[]{"likert_coherencia_perfil", "Coherencia perfil"},
-            new String[]{"likert_formacion_desempeno", "Formación→desempeño"},
-            new String[]{"likert_considera_opinion", "Considera opinión"},
-            new String[]{"likert_competencias_laborales", "Competencias"},
-            new String[]{"likert_valores_actitudes", "Valores"},
-            new String[]{"likert_participacion_procesos", "Participación"});
+    private static final String[] ITEMS_LIKERT = {
+            "likert_confianza_formadora", "Confianza formadora",
+            "likert_consistencia_titulo", "Consistencia título",
+            "likert_consulta_regular", "Consulta regular",
+            "likert_conoce_perfil", "Conoce perfil",
+            "likert_coherencia_perfil", "Coherencia perfil",
+            "likert_formacion_desempeno", "Formación→desempeño",
+            "likert_considera_opinion", "Considera opinión",
+            "likert_competencias_laborales", "Competencias",
+            "likert_valores_actitudes", "Valores",
+            "likert_participacion_procesos", "Participación"
+    };
 
     public VistaEmpleadores(RepositorioEmpleadores repositorio,
             ServicioAnalisis analisis) {
         add(new H1("Empleadores encuestados"));
-        add(new Details("Cómo leer esta pantalla",
-                new Paragraph(GuiasLectura.COMO_LEER_EMPLEADORES)));
 
         Grid<Empleador> tabla = new Grid<>(Empleador.class, false);
         tabla.addColumn(Empleador::getNombreEmpresa).setHeader("Empresa");
@@ -59,48 +58,81 @@ public class VistaEmpleadores extends VerticalLayout {
         tabla.setWidthFull();
         add(tabla);
 
-        add(new H3("Acuerdo institucional por ítem"));
+        // ---------- Gráfico [1]: Barras de acuerdo Likert ----------
+        add(new H3("Acuerdo institucional por ítem Likert"));
         List<Map<String, String>> mapas = analisis.mapasEmpleadores();
-        for (String[] item : ITEMS_LIKERT) {
-            List<Double> puntajes = analisis.likertDe(mapas, item[0]);
+        String[] nomsLikert = new String[ITEMS_LIKERT.length / 2];
+        int[] valsAcuerdo = new int[ITEMS_LIKERT.length / 2];
+        for (int i = 0; i < ITEMS_LIKERT.length; i += 2) {
+            String clave = ITEMS_LIKERT[i];
+            String etiqueta = ITEMS_LIKERT[i + 1];
+            List<Double> puntajes = analisis.likertDe(mapas, clave);
             long deAcuerdo = puntajes.stream().filter(p -> p >= 3).count();
             double porcentaje =
                     puntajes.isEmpty() ? 0 : 100.0 * deAcuerdo / puntajes.size();
-            add(barraDeAcuerdo(item[1], porcentaje));
+            nomsLikert[i / 2] = etiqueta;
+            valsAcuerdo[i / 2] = (int) Math.round(porcentaje);
         }
+        add(GraficoCanvas.enTarjeta(
+                GraficoCanvas.barrasVerticales(
+                        "barsLikert",
+                        valsAcuerdo,
+                        nomsLikert,
+                        COLOR_VERDE,
+                        "% de empleadores que están de acuerdo (3 o 4) por ítem"),
+                "Gráfico [1]: Likert empleadores"));
+
+        // ---------- Gráfico [2]: Torta de tipo de organización ----------
+        add(new H3("Tipo de organización"));
+        Map<String, Integer> frecTipo = bo.umss.mercado.nucleo.stats.Frecuencias
+                .contar(analisis.columnaDe(mapas, "tipo_organizacion"));
+        List<Map.Entry<String, Integer>> tiposOrdenados =
+                new java.util.ArrayList<>(frecTipo.entrySet());
+        tiposOrdenados.sort((a, b) -> b.getValue() - a.getValue());
+        String[] nomsTipo = new String[tiposOrdenados.size()];
+        int[] valsTipo = new int[tiposOrdenados.size()];
+        for (int i = 0; i < tiposOrdenados.size(); i++) {
+            nomsTipo[i] = tiposOrdenados.get(i).getKey();
+            valsTipo[i] = tiposOrdenados.get(i).getValue();
+        }
+        String[] coloresTipo = {COLOR_PRINCIPAL, COLOR_SECUNDARIO,
+                COLOR_NARANJA, COLOR_MORADO};
+        add(GraficoCanvas.enTarjeta(
+                GraficoCanvas.torta(
+                        "tortaTipoOrg",
+                        valsTipo,
+                        nomsTipo,
+                        coloresTipo,
+                        "Distribución por tipo de organización"),
+                "Gráfico [2]: Tipo de organización"));
 
         add(new H3("Competencias más mencionadas (texto libre)"));
-        for (var competencia : analisis.competenciasMencionadas(10)) {
+        for (Map.Entry<String, Integer> competencia :
+                analisis.competenciasMencionadas(10)) {
             add(new Paragraph(competencia.getKey() + ": "
                     + competencia.getValue() + " menciones"));
         }
 
-        // Cobertura de campo (§5 guía): 3 empresas, pública + privada.
+        // Cobertura de campo (§5 guía)
         long distintas = mapas.stream()
                 .map(f -> f.getOrDefault("nombre_empresa", "").trim())
                 .filter(n -> !n.isEmpty()).distinct().count();
-        boolean hayPublica = mapas.stream().anyMatch(f -> f
+        boolean hayPub = mapas.stream().anyMatch(f -> f
                 .getOrDefault("tipo_organizacion", "").contains("PUBLICO"));
-        boolean hayPrivada = mapas.stream().anyMatch(f -> f
+        boolean hayPriv = mapas.stream().anyMatch(f -> f
                 .getOrDefault("tipo_organizacion", "").contains("PRIVADO"));
         add(new Paragraph("Cobertura: " + distintas + " empresas "
                 + (distintas >= 3 ? "OK" : "INSUFICIENTE (mínimo 3)")
-                + " · Pública: " + (hayPublica ? "sí" : "FALTA")
-                + " · Privada: " + (hayPrivada ? "sí" : "FALTA")));
+                + " · Pública: " + (hayPub ? "sí" : "FALTA")
+                + " · Privada: " + (hayPriv ? "sí" : "FALTA")));
+
+        add(new Paragraph(GuiasLectura.COMO_LEER_EMPLEADORES));
     }
 
-    // barraDeAcuerdo(): renglón con nombre + barra 0-100% + cifra.
-    private HorizontalLayout barraDeAcuerdo(String nombre, double porcentaje) {
-        Div etiqueta = new Div();
-        etiqueta.setText(nombre);
-        etiqueta.setWidth("220px");
-        ProgressBar barra = new ProgressBar();
-        barra.setValue(porcentaje / 100.0);
-        barra.setWidth("300px");
-        Div cifra = new Div();
-        cifra.setText(String.format("%.1f%%", porcentaje));
-        HorizontalLayout fila = new HorizontalLayout(etiqueta, barra, cifra);
-        fila.setAlignItems(Alignment.CENTER);
-        return fila;
-    }
+    // Colores reutilizados
+    private static final String COLOR_PRINCIPAL = "#0b3d62";
+    private static final String COLOR_SECUNDARIO = "#0984e3";
+    private static final String COLOR_VERDE = "#27ae60";
+    private static final String COLOR_NARANJA = "#e17055";
+    private static final String COLOR_MORADO = "#6c5ce7";
 }
