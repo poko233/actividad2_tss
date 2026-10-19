@@ -1,0 +1,31 @@
+# ============================================================================
+# .dockerignore — Archivos que NO se suben a la imagen Docker
+# ============================================================================
+
+# Compilados y dependencias
+target/
+*.jar
+*.class
+
+# Base de datos local (se regenera sola desde los CSV)
+mercado.db
+
+# Logs
+*.log
+
+# Node.js (Vaadin descarga esto solo durante el build)
+node_modules/
+node/
+.npm/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Git
+.git/
+.gitignore
+
+# README y docs (no necesarios en la imagen)
+*.md
