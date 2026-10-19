@@ -45,10 +45,12 @@ public class VistaSimulacion extends VerticalLayout {
         tablaHistorial.addColumn(Simulacion::getFechaHora).setHeader("Fecha");
         tablaHistorial.addColumn(Simulacion::getEscenario)
                 .setHeader("Escenario");
-        tablaHistorial.addColumn(s -> String.format("%.1f%%",
-                s.getProporcionEmpirica() * 100)).setHeader("% afín real");
-        tablaHistorial.addColumn(s -> String.format("%.1f",
-                s.getDemandaMedia())).setHeader("Demanda media");
+        tablaHistorial.addColumn(s -> String.valueOf(
+                Math.round(s.getProporcionEmpirica() * 1000.0) / 10.0) + "%")
+                .setHeader("% afín real");
+        tablaHistorial.addColumn(s -> String.valueOf(
+                Math.round(s.getDemandaMedia() * 100.0) / 100.0))
+                .setHeader("Demanda media");
         tablaHistorial.addColumn(Simulacion::fraseSimple)
                 .setHeader("En palabras simples");
         tablaHistorial.setWidthFull();

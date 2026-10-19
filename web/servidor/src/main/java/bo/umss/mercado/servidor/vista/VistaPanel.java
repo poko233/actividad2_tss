@@ -106,7 +106,7 @@ public class VistaPanel extends VerticalLayout {
         if (Double.isNaN(numero)) {
             return "sin dato";
         }
-        return String.format("%.1f%s", numero, unidad);
+        return String.valueOf(Math.round(numero * 10.0) / 10.0) + unidad;
     }
 
     private Button botonIr(String texto, Class<?> vista) {

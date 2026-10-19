@@ -44,10 +44,10 @@ public class VistaCruces extends VerticalLayout {
         VerticalLayout seccion = new VerticalLayout();
         seccion.add(new H3(cruce.etiqueta()));
         seccion.add(mapaDeCalor(cruce));
-        seccion.add(new Paragraph(String.format(
-                "χ²=%.2f   gl=%d   p=%.4f  →  %s",
-                cruce.resultado().chi2(), cruce.resultado().gradosLibertad(),
-                cruce.resultado().valorP(), cruce.fraseSimple())));
+        seccion.add(new Paragraph("χ²=" + String.valueOf(cruce.resultado().chi2())
+                + "   gl=" + cruce.resultado().gradosLibertad()
+                + "   p=" + String.valueOf(cruce.resultado().valorP())
+                + "  →  " + cruce.fraseSimple()));
         return seccion;
     }
 

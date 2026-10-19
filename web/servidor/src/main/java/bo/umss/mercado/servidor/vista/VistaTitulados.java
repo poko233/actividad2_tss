@@ -169,8 +169,10 @@ public class VistaTitulados extends VerticalLayout {
     }
 
     private String formato(double numero) {
-        return Double.isNaN(numero) ? "sin dato"
-                : String.format("%.2f", numero);
+        if (Double.isNaN(numero)) {
+            return "sin dato";
+        }
+        return String.valueOf(Math.round(numero * 100.0) / 100.0);
     }
 
     // Colores reutilizados (iguales a GraficoCanvas para consistencia)
