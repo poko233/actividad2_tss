@@ -2,11 +2,8 @@ package bo.umss.mercado.servidor.vista;
 
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 
 /**
  * GraficoCanvas: graficos estadisticos dibujados con SVG generado en Java.
@@ -376,28 +373,25 @@ public class GraficoCanvas {
                 + "' text-anchor='" + ancla + "'>" + escapar(contenido) + "</text>";
     }
 
-    // contenedorConSvg(): muestra el SVG dentro de un <img> con un Data URI.
+    // contenedorConSvg(): inserta el SVG como HTML dentro de un Div.
     //
-    // POR QUE Data URI Y NO CANVAS:
-    //   - El SVG viaja dentro del HTML que el servidor manda, asi que el
-    //     grafico SIEMPRE se ve (no depende de que un JavaScript se ejecute
-    //     en el momento justo, que es lo que fallaba antes).
-    //   - Un <canvas> necesita JavaScript Y un elemento <canvas> real (con
-    //     un <div> el navegador responde "c.getContext is not a function").
-    //   - El SVG se dibuja con sus propios <text> y <rect>, sin CSS externo.
-    // El texto alternativo aparece al pasar el mouse por encima.
+    // POR QUE HTML INLINE Y NO <img> CON DATA URI:
+    //   el Data URI travela en el atributo src de un <img>. En produccion
+    //   (Render) esa imagen llega rota y el navegador muestra el icono de
+    //   "imagen no disponible" con el texto alternativo.
+    //   Con innerHTML el SVG es parte del DOM (como cualquier texto), asi
+    //   que el navegador lo dibuja siempre. Ademas los <title> internos
+    //   siguen funcionando como tooltips al pasar el mouse.
+    // El executeJs se ejecuta cuando el Div ya esta en el navegador, y
+    // "this" es el propio Div, asi que no hay problemas de sincronismo.
     private static Component contenedorConSvg(String svg, String textoAlternativo) {
-        String codificado = Base64.getEncoder().encodeToString(
-                svg.getBytes(StandardCharsets.UTF_8));
-        Image imagen = new Image("data:image/svg+xml;base64," + codificado,
-                textoAlternativo);
-        imagen.getStyle().set("width", "100%").set("height", "auto")
-                .set("display", "block");
-        Div contenedor = new Div(imagen);
+        Div contenedor = new Div();
+        contenedor.setId("grafico-" + textoAlternativo.hashCode());
         contenedor.getStyle().set("width", "100%")
                 .set("max-width", "820px")
                 .set("margin", "10px 0")
                 .set("overflow-x", "auto");
+        contenedor.getElement().executeJs("this.innerHTML = $0", svg);
         return contenedor;
     }
 
