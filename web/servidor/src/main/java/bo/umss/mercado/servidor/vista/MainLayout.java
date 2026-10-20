@@ -29,7 +29,8 @@ public class MainLayout extends AppLayout {
                 pestañaPara("Cruces χ²", VistaCruces.class),
                 pestañaPara("Simulación", VistaSimulacion.class),
                 pestañaPara("Registrar", VistaRegistro.class),
-                pestañaPara("Importar CSV", VistaImportar.class));
+                pestañaPara("Importar CSV", VistaImportar.class),
+                pestañaPara("Exportar", VistaExportar.class));
         menu.setOrientation(Tabs.Orientation.VERTICAL);
         addToDrawer(menu);
     }

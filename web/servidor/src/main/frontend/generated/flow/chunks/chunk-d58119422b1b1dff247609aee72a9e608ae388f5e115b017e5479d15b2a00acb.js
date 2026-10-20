@@ -7,7 +7,6 @@ import '@vaadin/tooltip/src/vaadin-tooltip.js';
 import '@vaadin/app-layout/src/vaadin-drawer-toggle.js';
 import '@vaadin/tabs/src/vaadin-tab.js';
 import '@vaadin/upload/src/vaadin-upload.js';
-import '@vaadin/progress-bar/src/vaadin-progress-bar.js';
 import '@vaadin/context-menu/src/vaadin-context-menu.js';
 import 'Frontend/generated/jar-resources/contextMenuConnector.js';
 import 'Frontend/generated/jar-resources/contextMenuTargetConnector.js';

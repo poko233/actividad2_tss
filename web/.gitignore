@@ -8,3 +8,6 @@ mercado.db
 # Node.js que Vaadin descarga solo para la parte visual
 node_modules/
 node/
+
+# Archivos generados por Vaadin (se regeneran solo al compilar)
+web/servidor/src/main/frontend/generated/
