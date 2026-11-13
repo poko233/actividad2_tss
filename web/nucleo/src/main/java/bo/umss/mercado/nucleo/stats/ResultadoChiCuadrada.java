@@ -11,15 +11,11 @@ public record ResultadoChiCuadrada(
         List<String> columnas,
         long[][] observadas,
         double[][] esperadas,
-        boolean cochranViolado,
-        boolean usoMonteCarlo,
-        String metodo,
         double vCramer) {
 
     public static ResultadoChiCuadrada vacio() {
         return new ResultadoChiCuadrada(Double.NaN, 0, Double.NaN, 0,
-                List.of(), List.of(), new long[0][0], new double[0][0],
-                false, false, "sin datos", Double.NaN);
+                List.of(), List.of(), new long[0][0], new double[0][0], Double.NaN);
     }
 
     public boolean significativa() {

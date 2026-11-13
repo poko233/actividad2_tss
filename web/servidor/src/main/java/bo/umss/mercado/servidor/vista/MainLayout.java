@@ -5,13 +5,11 @@ import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
 import com.vaadin.flow.router.RouterLink;
 
-// MainLayout: el "marco" que envuelve TODAS las pantallas.
-// Barra superior con título + menú lateral con una pestaña por vista.
-// Cada vista nueva solo necesita: su clase + una línea aquí abajo.
 public class MainLayout extends AppLayout {
 
     public MainLayout() {
@@ -26,7 +24,6 @@ public class MainLayout extends AppLayout {
                 pestañaPara("Panel", VistaPanel.class),
                 pestañaPara("Titulados", VistaTitulados.class),
                 pestañaPara("Empleadores", VistaEmpleadores.class),
-                pestañaPara("Cruces χ²", VistaCruces.class),
                 pestañaPara("Simulación", VistaSimulacion.class),
                 pestañaPara("Registrar", VistaRegistro.class),
                 pestañaPara("Importar CSV", VistaImportar.class),
@@ -35,9 +32,8 @@ public class MainLayout extends AppLayout {
         addToDrawer(menu);
     }
 
-    // pestañaPara(): una entrada del menú que navega a la vista indicada.
-    private Tab pestañaPara(String texto, Class<?> vista) {
-        RouterLink enlace = new RouterLink(texto, (Class) vista);
+    private Tab pestañaPara(String texto, Class<? extends Component> vista) {
+        RouterLink enlace = new RouterLink(texto, vista);
         return new Tab(enlace);
     }
 }

@@ -77,7 +77,7 @@ public class ServicioCruces {
     public record FilaMatrizBivariada(
             String etiqueta, double chi, int gl, double pOriginal,
             double pHolm, double vCramer, String intensidad,
-            boolean significativa, String metodo) {}
+            boolean significativa) {}
 
     private List<FilaMatrizBivariada> matrizDesdeCruces(List<FichaCruce> cruces) {
         List<Double> ps = new ArrayList<>();
@@ -92,7 +92,7 @@ public class ServicioCruces {
             out.add(new FilaMatrizBivariada(
                     c.etiqueta(), r.chiCuadrada(), r.gradosLibertad(),
                     r.valorP(), h.valorPAjustado(), r.vCramer(),
-                    r.intensidadVCramer(), h.significativo(), r.metodo()));
+                    r.intensidadVCramer(), h.significativo()));
         }
         return out;
     }

@@ -1,73 +1,31 @@
 package bo.umss.mercado.servidor.vista;
 
-import bo.umss.mercado.nucleo.guia.GuiasLectura;
 import bo.umss.mercado.servidor.servicio.FichaCruce;
 import bo.umss.mercado.servidor.servicio.ServicioCruces;
-import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.details.Details;
-import com.vaadin.flow.component.grid.Grid;
-import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
-import java.util.ArrayList;
-import java.util.List;
 
-/**
- * VistaCruces: cada cruce en su sección — matriz de conteos pintada como
- * mapa de calor (más oscuro = más casos) + veredicto χ² en frase.
- */
 @Route(value = "cruces", layout = MainLayout.class)
 @PageTitle("Cruces χ² | Mercado UMSS")
 public class VistaCruces extends VerticalLayout {
 
     public VistaCruces(ServicioCruces cruces) {
         add(new H1("Cruces de variables (χ²)"));
-        add(new Details("Cómo leer estas tablas",
-                new Paragraph(GuiasLectura.COMO_LEER_CHI2)));
+        add(new Paragraph("Esta pantalla se mantiene por compatibilidad. "
+                + "Los cruces también están disponibles dentro de cada pestaña "
+                + "(Titulados → Bivariado y Empleadores → Bivariado)."));
 
         add(new H3("Titulados"));
-        for (FichaCruce cruce : cruces.crucesTitulados()) {
-            add(seccionDeCruce(cruce));
+        for (FichaCruce c : cruces.crucesTitulados()) {
+            add(PanelCruce.render(c, cruces));
         }
         add(new H3("Empleadores"));
-        for (FichaCruce cruce : cruces.crucesEmpleadores()) {
-            add(seccionDeCruce(cruce));
+        for (FichaCruce c : cruces.crucesEmpleadores()) {
+            add(PanelCruce.render(c, cruces));
         }
-    }
-
-    // seccionDeCruce(): título + heatmap + línea χ² + frase simple.
-    private VerticalLayout seccionDeCruce(FichaCruce cruce) {
-        VerticalLayout seccion = new VerticalLayout();
-        seccion.add(new H3(cruce.etiqueta()));
-        seccion.add(mapaDeCalor(cruce));
-        seccion.add(new Paragraph("χ²=" + String.valueOf(cruce.resultado().chiCuadrada())
-                + "   gl=" + cruce.resultado().gradosLibertad()
-                + "   p=" + String.valueOf(cruce.resultado().valorP())
-                + "  →  " + cruce.fraseSimple()));
-        return seccion;
-    }
-
-    // mapaDeCalor(): usa GraficoCanvas.mapaCalor() para dibujar la matriz.
-    private Component mapaDeCalor(FichaCruce cruce) {
-        long[][] obsLong = cruce.resultado().observadas();
-        int[][] obs = new int[obsLong.length][];
-        for (int f = 0; f < obsLong.length; f++) {
-            obs[f] = new int[obsLong[f].length];
-            for (int c = 0; c < obsLong[f].length; c++) obs[f][c] = (int) obsLong[f][c];
-        }
-        String[] filas = cruce.resultado().filas()
-                .toArray(new String[0]);
-        String[] cols = cruce.resultado().columnas()
-                .toArray(new String[0]);
-        return GraficoCanvas.enTarjeta(
-                GraficoCanvas.mapaCalor(
-                        "heatmap_" + cruce.etiqueta().replace(" ", "_"),
-                        obs, filas, cols,
-                        cruce.etiqueta()),
-                "Mapa de calor: " + cruce.etiqueta());
     }
 }

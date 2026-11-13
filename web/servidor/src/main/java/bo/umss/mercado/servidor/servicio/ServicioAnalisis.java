@@ -47,14 +47,19 @@ public class ServicioAnalisis {
 
     public List<String> columnaDe(List<Map<String, String>> mapas, String columna) {
         List<String> v = new ArrayList<>();
-        for (Map<String, String> f : mapas) v.add(f.getOrDefault(columna, ""));
+        for (Map<String, String> f : mapas) {
+            String val = f.get(columna);
+            v.add(val == null ? "" : val);
+        }
         return v;
     }
 
     public List<Double> numerosDe(List<Map<String, String>> mapas, String columna) {
         List<Double> v = new ArrayList<>();
         for (Map<String, String> f : mapas) {
-            String t = f.getOrDefault(columna, "").replace(",", ".");
+            String t = f.get(columna);
+            if (t == null) t = "";
+            t = t.replace(",", ".");
             if (t.isEmpty()) continue;
             try { v.add(Double.parseDouble(t)); } catch (NumberFormatException ignored) {}
         }
@@ -64,7 +69,9 @@ public class ServicioAnalisis {
     public List<Double> likertDe(List<Map<String, String>> mapas, String columna) {
         List<Double> v = new ArrayList<>();
         for (Map<String, String> f : mapas) {
-            double p = EscalaLikert.traducir(f.getOrDefault(columna, ""), columna);
+            String raw = f.get(columna);
+            if (raw == null) raw = "";
+            double p = EscalaLikert.traducir(raw, columna);
             if (!Double.isNaN(p)) v.add(p);
         }
         return v;
@@ -89,7 +96,8 @@ public class ServicioAnalisis {
             java.util.function.Predicate<String> cond) {
         int fav = 0, resp = 0;
         for (Map<String, String> f : mapas) {
-            String v = f.getOrDefault(columna, "");
+            String v = f.get(columna);
+            if (v == null) v = "";
             if (v.isEmpty()) continue;
             resp++;
             if (cond.test(v)) fav++;

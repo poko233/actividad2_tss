@@ -36,6 +36,7 @@ public class CargadorInicial {
     public void alEstarListo() {
         try {
             limpiarRegistrosFantasma();
+            detectarYLimpiarDatosStale();
             cargarTituladosSiHaceFalta();
             cargarEmpleadoresSiHaceFalta();
         } catch (Exception ex) {
@@ -63,6 +64,32 @@ public class CargadorInicial {
 
     private boolean esVacio(String s) {
         return s == null || s.isEmpty();
+    }
+
+    private void detectarYLimpiarDatosStale() {
+        List<Titulado> ts = repoTitulados.findAll();
+        if (!ts.isEmpty()) {
+            long conPertinencia = ts.stream()
+                    .filter(t -> t.getPertinenciaTrabajo() != null
+                            && !t.getPertinenciaTrabajo().isEmpty())
+                    .count();
+            if (conPertinencia < ts.size() * 0.1) {
+                repoTitulados.deleteAll();
+                log.warn("Datos stale detectados ({} con pertinencia de {}). "
+                        + "Borrados para forzar recarga.", conPertinencia, ts.size());
+            }
+        }
+        List<Empleador> es = repoEmpleadores.findAll();
+        if (!es.isEmpty()) {
+            long conDerivadas = es.stream()
+                    .filter(e -> e.getTamanoAgrupado() != null
+                            && !e.getTamanoAgrupado().isEmpty())
+                    .count();
+            if (conDerivadas < es.size() * 0.1) {
+                repoEmpleadores.deleteAll();
+                log.warn("Empleadores stale detectados. Borrados para forzar recarga.");
+            }
+        }
     }
 
     private void cargarTituladosSiHaceFalta() throws Exception {

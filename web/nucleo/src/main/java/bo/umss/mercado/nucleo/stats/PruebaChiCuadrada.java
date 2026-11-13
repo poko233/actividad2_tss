@@ -58,17 +58,15 @@ public class PruebaChiCuadrada {
                 esp[i][j] = (double) totFila[i] * totCol[j] / n;
                 if (esp[i][j] < 5) celdasBajas++;
             }
-        boolean cochranViolado = celdasBajas > (r * c * 0.2);
+        boolean necesitaMonteCarlo = celdasBajas > (r * c * 0.2);
 
         double chi = Double.NaN;
         double p = Double.NaN;
-        String metodo = "chi2 de Pearson (asintotico)";
         try {
             ChiSquareTest test = new ChiSquareTest();
             chi = test.chiSquare(obs);
-            if (cochranViolado) {
+            if (necesitaMonteCarlo) {
                 p = monteCarloPermutacion(obs, chi, REPLICAS_MC);
-                metodo = "chi2 + Monte Carlo (permutacion, " + REPLICAS_MC + " replicas, Cochran violado)";
             } else {
                 p = test.chiSquareTest(obs);
             }
@@ -78,7 +76,6 @@ public class PruebaChiCuadrada {
                     chi = new ChiSquareTest().chiSquare(obs);
                 }
                 p = monteCarloPermutacion(obs, chi, REPLICAS_MC);
-                metodo = "chi2 + Monte Carlo (fallback por error asintotico)";
             } catch (Exception ex2) {
                 // queda NaN
             }
@@ -91,10 +88,8 @@ public class PruebaChiCuadrada {
             v = Math.sqrt(chi / (n * (double) glMin));
         }
 
-        boolean usoMonteCarloFinal = metodo.contains("Monte Carlo");
         return new ResultadoChiCuadrada(
-                chi, gl, p, (int) n, filas, columnas, obs, esp,
-                cochranViolado, usoMonteCarloFinal, metodo, v);
+                chi, gl, p, (int) n, filas, columnas, obs, esp, v);
     }
 
     private static double monteCarloPermutacion(long[][] obs, double chiObservado, int replicas) {

@@ -1,14 +1,25 @@
+import 'Frontend/generated/jar-resources/flow-component-renderer.js';
 import '@vaadin/polymer-legacy-adapter/style-modules.js';
+import 'Frontend/generated/jar-resources/vaadin-grid-flow-selection-column.js';
 import '@vaadin/vertical-layout/src/vaadin-vertical-layout.js';
 import '@vaadin/app-layout/src/vaadin-app-layout.js';
 import '@vaadin/tooltip/src/vaadin-tooltip.js';
 import '@vaadin/app-layout/src/vaadin-drawer-toggle.js';
 import '@vaadin/tabs/src/vaadin-tab.js';
+import '@vaadin/context-menu/src/vaadin-context-menu.js';
+import 'Frontend/generated/jar-resources/contextMenuConnector.js';
+import 'Frontend/generated/jar-resources/contextMenuTargetConnector.js';
 import '@vaadin/horizontal-layout/src/vaadin-horizontal-layout.js';
 import '@vaadin/tabs/src/vaadin-tabs.js';
+import '@vaadin/grid/src/vaadin-grid.js';
+import '@vaadin/grid/src/vaadin-grid-column.js';
+import '@vaadin/grid/src/vaadin-grid-sorter.js';
+import '@vaadin/checkbox/src/vaadin-checkbox.js';
+import 'Frontend/generated/jar-resources/gridConnector.ts';
 import '@vaadin/button/src/vaadin-button.js';
-import '@vaadin/details/src/vaadin-details.js';
 import 'Frontend/generated/jar-resources/disableOnClickFunctions.js';
+import '@vaadin/grid/src/vaadin-grid-column-group.js';
+import 'Frontend/generated/jar-resources/lit-renderer.ts';
 import '@vaadin/common-frontend/ConnectionIndicator.js';
 import '@vaadin/vaadin-lumo-styles/color-global.js';
 import '@vaadin/vaadin-lumo-styles/typography-global.js';
@@ -20,26 +31,26 @@ import 'Frontend/generated/jar-resources/ReactRouterOutletElement.tsx';
 
 const loadOnDemand = (key) => {
   const pending = [];
-  if (key === '8811d7c2ab5d7903ac0d721ddd02c79f605e2b1b7b55e1bb14bede31fc6cac06') {
-    pending.push(import('./chunks/chunk-a616055c7a9e8b9a77a7a32aa624e81fbdd369dfac5744aa40362432c38554ff.js'));
-  }
-  if (key === '6b532e03523a6611cf2a8400261c0afcf7def2202767e55abeb8ec5a7c768fdf') {
-    pending.push(import('./chunks/chunk-003e635fb41cc61f71d23cca6c0728f4ee89d7f1ae8cdbaa50972e4b5f7018a8.js'));
-  }
-  if (key === '454eb3d9b9b444a80b8a20f6a55eeeb6a3ab4f74d1abd7694557ff1af82e8c82') {
-    pending.push(import('./chunks/chunk-a616055c7a9e8b9a77a7a32aa624e81fbdd369dfac5744aa40362432c38554ff.js'));
-  }
   if (key === 'eba7582de0afb43b12dbd8faf11aa73bbba79eaf40e7734e34337f6e4884b95c') {
-    pending.push(import('./chunks/chunk-fc6cc49422349af0673fa66e48ab28d073448e7d8993bb678d2c02f2d7354880.js'));
+    pending.push(import('./chunks/chunk-c05e7a2e783c406737c663a66ce6631e0e17f37926a4db2af4e01e581d808424.js'));
   }
   if (key === 'e49da1e99eb4d858b6e7b4424f9bebec3225f732d35b46805e5209685946f182') {
-    pending.push(import('./chunks/chunk-a616055c7a9e8b9a77a7a32aa624e81fbdd369dfac5744aa40362432c38554ff.js'));
+    pending.push(import('./chunks/chunk-7a1e8c0c4ae8145190052c6061df2f93655f7dbe86afe217c345baa576ea0363.js'));
   }
   if (key === 'ef9056735503ef15836063d37be8bed816d9ec2f39d4931eab4db018a73b89a8') {
-    pending.push(import('./chunks/chunk-a4ee55bcbecfdae3e57e19ddecfac3f21b998598b8dc2537bb8bfd51b13373af.js'));
+    pending.push(import('./chunks/chunk-c05e7a2e783c406737c663a66ce6631e0e17f37926a4db2af4e01e581d808424.js'));
   }
   if (key === '0d50b5486aac0b0b6bed92b5f62538187878454f282542eb12010ca1ce7d7bf2') {
-    pending.push(import('./chunks/chunk-a4ee55bcbecfdae3e57e19ddecfac3f21b998598b8dc2537bb8bfd51b13373af.js'));
+    pending.push(import('./chunks/chunk-c05e7a2e783c406737c663a66ce6631e0e17f37926a4db2af4e01e581d808424.js'));
+  }
+  if (key === '6b532e03523a6611cf2a8400261c0afcf7def2202767e55abeb8ec5a7c768fdf') {
+    pending.push(import('./chunks/chunk-4db075c1134ef35aa6b49230acb43439a5f7d9f050f61a681a061df39753135c.js'));
+  }
+  if (key === '454eb3d9b9b444a80b8a20f6a55eeeb6a3ab4f74d1abd7694557ff1af82e8c82') {
+    pending.push(import('./chunks/chunk-acd14ee13e59098a8d282cb19cd32dc7ca5b1dba034b02c03e3e220c55ac5d08.js'));
+  }
+  if (key === '8811d7c2ab5d7903ac0d721ddd02c79f605e2b1b7b55e1bb14bede31fc6cac06') {
+    pending.push(import('./chunks/chunk-a616055c7a9e8b9a77a7a32aa624e81fbdd369dfac5744aa40362432c38554ff.js'));
   }
   return Promise.all(pending);
 }

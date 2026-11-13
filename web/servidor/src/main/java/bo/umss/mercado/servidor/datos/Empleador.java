@@ -141,44 +141,44 @@ public class Empleador {
 
     public Map<String, String> comoMapa() {
         Map<String, String> f = new LinkedHashMap<>();
-        f.put("id_empleador", idEmpleador);
-        f.put("correo", correo);
-        f.put("nombre_empresa", nombreEmpresa);
-        f.put("tipo_organizacion", tipoOrganizacion);
-        f.put("tamano_organizacion", tamanoOrganizacion);
-        f.put("sector_rubro", sectorRubro);
-        f.put("contrato_ultimos_5_anios", contratoUltimos5Anios);
-        f.put("posibilidad_futura_contratacion", posibilidadFuturaContratacion);
-        f.put("nivel_formacion_demanda", nivelFormacionDemanda);
-        f.put("medio_convocatoria", medioConvocatoria);
-        f.put("cargos_desempenados", cargosDesempenados);
-        f.put("areas_conocimiento_emergentes", areasConocimientoEmergentes);
-        f.put("herramientas_tecnologicas", herramientasTecnologicas);
-        f.put("habilidades_competencias_requeridas", habilidadesCompetenciasRequeridas);
-        f.put("likert_confianza_formadora", likertConfianzaFormadora);
-        f.put("likert_consistencia_titulo", likertConsistenciaTitulo);
-        f.put("likert_consulta_regular", likertConsultaRegular);
-        f.put("likert_conoce_perfil", likertConocePerfil);
-        f.put("likert_coherencia_perfil", likertCoherenciaPerfil);
-        f.put("likert_formacion_desempeno", likertFormacionDesempeno);
-        f.put("likert_considera_opinion", likertConsideraOpinion);
-        f.put("likert_competencias_laborales", likertCompetenciasLaborales);
-        f.put("likert_valores_actitudes", likertValoresActitudes);
-        f.put("likert_participacion_procesos", likertParticipacionProcesos);
-        f.put("likert_vinculos_organizaciones", likertVinculosOrganizaciones);
-        f.put("likert_participacion_vinculacion", likertParticipacionVinculacion);
-        f.put("likert_difusion_oportunidades", likertDifusionOportunidades);
-        f.put("likert_vinculacion_profesionales", likertVinculacionProfesionales);
-        f.put("likert_consultado_desempeno", likertConsultadoDesempeno);
-        f.put("likert_consultado_pertinencia", likertConsultadoPertinencia);
-        f.put("likert_recurre_umss", likertRecurreUmss);
-        f.put("likert_consultado_autoevaluacion", likertConsultadoAutoevaluacion);
-        f.put("tamano_agrupado", tamanoAgrupado);
-        f.put("rubro_agrupado", rubroAgrupado);
-        f.put("demanda_ia", demandaIa);
-        f.put("tendencias_categorias", tendenciasCategorias);
-        f.put("hard_skills_categorias", hardSkillsCategorias);
-        f.put("soft_skills_categorias", softSkillsCategorias);
+        f.put("id_empleador", nz(idEmpleador));
+        f.put("correo", nz(correo));
+        f.put("nombre_empresa", nz(nombreEmpresa));
+        f.put("tipo_organizacion", nz(tipoOrganizacion));
+        f.put("tamano_organizacion", nz(tamanoOrganizacion));
+        f.put("sector_rubro", nz(sectorRubro));
+        f.put("contrato_ultimos_5_anios", nz(contratoUltimos5Anios));
+        f.put("posibilidad_futura_contratacion", nz(posibilidadFuturaContratacion));
+        f.put("nivel_formacion_demanda", nz(nivelFormacionDemanda));
+        f.put("medio_convocatoria", nz(medioConvocatoria));
+        f.put("cargos_desempenados", nz(cargosDesempenados));
+        f.put("areas_conocimiento_emergentes", nz(areasConocimientoEmergentes));
+        f.put("herramientas_tecnologicas", nz(herramientasTecnologicas));
+        f.put("habilidades_competencias_requeridas", nz(habilidadesCompetenciasRequeridas));
+        f.put("likert_confianza_formadora", nz(likertConfianzaFormadora));
+        f.put("likert_consistencia_titulo", nz(likertConsistenciaTitulo));
+        f.put("likert_consulta_regular", nz(likertConsultaRegular));
+        f.put("likert_conoce_perfil", nz(likertConocePerfil));
+        f.put("likert_coherencia_perfil", nz(likertCoherenciaPerfil));
+        f.put("likert_formacion_desempeno", nz(likertFormacionDesempeno));
+        f.put("likert_considera_opinion", nz(likertConsideraOpinion));
+        f.put("likert_competencias_laborales", nz(likertCompetenciasLaborales));
+        f.put("likert_valores_actitudes", nz(likertValoresActitudes));
+        f.put("likert_participacion_procesos", nz(likertParticipacionProcesos));
+        f.put("likert_vinculos_organizaciones", nz(likertVinculosOrganizaciones));
+        f.put("likert_participacion_vinculacion", nz(likertParticipacionVinculacion));
+        f.put("likert_difusion_oportunidades", nz(likertDifusionOportunidades));
+        f.put("likert_vinculacion_profesionales", nz(likertVinculacionProfesionales));
+        f.put("likert_consultado_desempeno", nz(likertConsultadoDesempeno));
+        f.put("likert_consultado_pertinencia", nz(likertConsultadoPertinencia));
+        f.put("likert_recurre_umss", nz(likertRecurreUmss));
+        f.put("likert_consultado_autoevaluacion", nz(likertConsultadoAutoevaluacion));
+        f.put("tamano_agrupado", nz(tamanoAgrupado));
+        f.put("rubro_agrupado", nz(rubroAgrupado));
+        f.put("demanda_ia", nz(demandaIa));
+        f.put("tendencias_categorias", nz(tendenciasCategorias));
+        f.put("hard_skills_categorias", nz(hardSkillsCategorias));
+        f.put("soft_skills_categorias", nz(softSkillsCategorias));
         return f;
     }
 
@@ -229,5 +229,8 @@ public class Empleador {
             }
         }
         return e;
+    }
+    private static String nz(String v) {
+        return v == null ? "" : v;
     }
 }

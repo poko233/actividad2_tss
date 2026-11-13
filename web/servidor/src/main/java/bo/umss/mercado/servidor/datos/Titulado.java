@@ -170,56 +170,56 @@ public class Titulado {
 
     public Map<String, String> comoMapa() {
         Map<String, String> fila = new LinkedHashMap<>();
-        fila.put("id_titulado", idTitulado);
-        fila.put("edad", edad);
-        fila.put("genero", genero);
-        fila.put("realizo_formacion_complementaria", realizoFormacionComplementaria);
-        fila.put("nivel_posgrado", nivelPosgrado);
-        fila.put("institucion_formacion", institucionFormacion);
-        fila.put("financiamiento_formacion", financiamientoFormacion);
-        fila.put("nombre_programa", nombrePrograma);
-        fila.put("interes_posgrado", interesPosgrado);
-        fila.put("area_interes_posgrado", areaInteresPosgrado);
-        fila.put("institucion_futura_posgrado", institucionFuturaPosgrado);
-        fila.put("opinion_posgrado_fcyt", opinionPosgradoFcyt);
-        fila.put("anios_vida_profesional", aniosVidaProfesional);
-        fila.put("anios_desempleado", aniosDesempleado);
-        fila.put("situacion_laboral_actual", situacionLaboralActual);
-        fila.put("nombre_empresa", nombreEmpresa);
-        fila.put("rubro", rubro);
-        fila.put("otro_rubro", otroRubro);
-        fila.put("sector", sector);
-        fila.put("departamento", departamento);
-        fila.put("area_organizacion", areaOrganizacion);
-        fila.put("otra_area", otraArea);
-        fila.put("cargo", cargo);
-        fila.put("otro_cargo", otroCargo);
-        fila.put("pertinencia_trabajo", pertinenciaTrabajo);
-        fila.put("antiguedad_puesto", antiguedadPuesto);
-        fila.put("medio_obtencion_empleo", medioObtencionEmpleo);
-        fila.put("remuneracion_rango", remuneracionRango);
-        fila.put("razon_no_trabaja", razonNoTrabaja);
-        fila.put("ha_tenido_trabajo_antes", haTenidoTrabajoAntes);
-        fila.put("origen_emprendimiento", origenEmprendimiento);
-        fila.put("tipo_entregable_negocio", tipoEntregableNegocio);
-        fila.put("financiamiento_negocio", financiamientoNegocio);
-        fila.put("satisfaccion_negocio", satisfaccionNegocio);
-        fila.put("importancia_formacion_negocio", importanciaFormacionNegocio);
-        fila.put("primer_empleo_actual", primerEmpleoActual);
-        fila.put("tiempo_primer_empleo", tiempoPrimerEmpleo);
-        fila.put("num_empleos_desde_titulacion", numEmpleosDesdeTitulacion);
-        fila.put("satisfaccion_formacion", satisfaccionFormacion);
-        fila.put("concordancia_formacion_requerimientos", concordanciaFormacionRequerimientos);
-        fila.put("aspectos_utiles", aspectosUtiles);
-        fila.put("aspectos_mejorar", aspectosMejorar);
-        fila.put("asignaturas_ventajosas", asignaturasVentajosas);
-        fila.put("asignaturas_inutiles", asignaturasInutiles);
-        fila.put("asignatura_ventajosa_otra", asignaturaVentajosaOtra);
-        fila.put("asignatura_inutil_otra", asignaturaInutilOtra);
-        fila.put("red_contactos", redContactos);
-        fila.put("email_contacto", emailContacto);
-        fila.put("telefono_contacto", telefonoContacto);
-        fila.put("linkedin_contacto", linkedinContacto);
+        fila.put("id_titulado", nz(idTitulado));
+        fila.put("edad", nz(edad));
+        fila.put("genero", nz(genero));
+        fila.put("realizo_formacion_complementaria", nz(realizoFormacionComplementaria));
+        fila.put("nivel_posgrado", nz(nivelPosgrado));
+        fila.put("institucion_formacion", nz(institucionFormacion));
+        fila.put("financiamiento_formacion", nz(financiamientoFormacion));
+        fila.put("nombre_programa", nz(nombrePrograma));
+        fila.put("interes_posgrado", nz(interesPosgrado));
+        fila.put("area_interes_posgrado", nz(areaInteresPosgrado));
+        fila.put("institucion_futura_posgrado", nz(institucionFuturaPosgrado));
+        fila.put("opinion_posgrado_fcyt", nz(opinionPosgradoFcyt));
+        fila.put("anios_vida_profesional", nz(aniosVidaProfesional));
+        fila.put("anios_desempleado", nz(aniosDesempleado));
+        fila.put("situacion_laboral_actual", nz(situacionLaboralActual));
+        fila.put("nombre_empresa", nz(nombreEmpresa));
+        fila.put("rubro", nz(rubro));
+        fila.put("otro_rubro", nz(otroRubro));
+        fila.put("sector", nz(sector));
+        fila.put("departamento", nz(departamento));
+        fila.put("area_organizacion", nz(areaOrganizacion));
+        fila.put("otra_area", nz(otraArea));
+        fila.put("cargo", nz(cargo));
+        fila.put("otro_cargo", nz(otroCargo));
+        fila.put("pertinencia_trabajo", nz(pertinenciaTrabajo));
+        fila.put("antiguedad_puesto", nz(antiguedadPuesto));
+        fila.put("medio_obtencion_empleo", nz(medioObtencionEmpleo));
+        fila.put("remuneracion_rango", nz(remuneracionRango));
+        fila.put("razon_no_trabaja", nz(razonNoTrabaja));
+        fila.put("ha_tenido_trabajo_antes", nz(haTenidoTrabajoAntes));
+        fila.put("origen_emprendimiento", nz(origenEmprendimiento));
+        fila.put("tipo_entregable_negocio", nz(tipoEntregableNegocio));
+        fila.put("financiamiento_negocio", nz(financiamientoNegocio));
+        fila.put("satisfaccion_negocio", nz(satisfaccionNegocio));
+        fila.put("importancia_formacion_negocio", nz(importanciaFormacionNegocio));
+        fila.put("primer_empleo_actual", nz(primerEmpleoActual));
+        fila.put("tiempo_primer_empleo", nz(tiempoPrimerEmpleo));
+        fila.put("num_empleos_desde_titulacion", nz(numEmpleosDesdeTitulacion));
+        fila.put("satisfaccion_formacion", nz(satisfaccionFormacion));
+        fila.put("concordancia_formacion_requerimientos", nz(concordanciaFormacionRequerimientos));
+        fila.put("aspectos_utiles", nz(aspectosUtiles));
+        fila.put("aspectos_mejorar", nz(aspectosMejorar));
+        fila.put("asignaturas_ventajosas", nz(asignaturasVentajosas));
+        fila.put("asignaturas_inutiles", nz(asignaturasInutiles));
+        fila.put("asignatura_ventajosa_otra", nz(asignaturaVentajosaOtra));
+        fila.put("asignatura_inutil_otra", nz(asignaturaInutilOtra));
+        fila.put("red_contactos", nz(redContactos));
+        fila.put("email_contacto", nz(emailContacto));
+        fila.put("telefono_contacto", nz(telefonoContacto));
+        fila.put("linkedin_contacto", nz(linkedinContacto));
         return fila;
     }
 
@@ -282,5 +282,9 @@ public class Titulado {
             }
         }
         return titulado;
+    }
+
+    private static String nz(String v) {
+        return v == null ? "" : v;
     }
 }
