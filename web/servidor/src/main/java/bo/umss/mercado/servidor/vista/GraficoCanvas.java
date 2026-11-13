@@ -265,9 +265,14 @@ public class GraficoCanvas {
         // valores : puntajes (uno por categoria)
         // etiquetas: nombres de las categorias
         // ------------------------------------------------------------------------
-        public static Component radar(String id, double[] valores, String[] etiquetas,
-                        String titulo) {
+        public static Component radar(String id, double[] valores, String[] etiquetas, String titulo) {
+                return radarConEscala(id, valores, etiquetas, 4, titulo);
+        }
+
+        public static Component radarConEscala(String id, double[] valores, String[] etiquetas,
+                        int escalaMaxima, String titulo) {
                 final int ancho = 480;
+                final int max = Math.max(2, escalaMaxima);
                 final int alto = 360;
                 final double centroX = 235;
                 final double centroY = 175;
@@ -283,12 +288,12 @@ public class GraficoCanvas {
                 }
 
                 // Anillos (uno por nivel de la escala 1-4).
-                for (int nivel = 1; nivel <= 4; nivel++) {
+                for (int nivel = 1; nivel <= max; nivel++) {
                         StringBuilder puntos = new StringBuilder();
                         for (int i = 0; i < cantidad; i++) {
                                 double angulo = -Math.PI / 2 + i * 2 * Math.PI / cantidad;
-                                double x = centroX + radio * (nivel / 4.0) * Math.cos(angulo);
-                                double y = centroY + radio * (nivel / 4.0) * Math.sin(angulo);
+                                double x = centroX + radio * (nivel / (double) max) * Math.cos(angulo);
+                                double y = centroY + radio * (nivel / (double) max) * Math.sin(angulo);
                                 puntos.append(i == 0 ? "M" : "L").append(numero(x)).append(",")
                                                 .append(numero(y)).append(" ");
                         }
@@ -309,7 +314,7 @@ public class GraficoCanvas {
                 StringBuilder puntos = new StringBuilder();
                 for (int i = 0; i < cantidad; i++) {
                         double angulo = -Math.PI / 2 + i * 2 * Math.PI / cantidad;
-                        double distancia = radio * (valores[i] / 4.0);
+                        double distancia = radio * (valores[i] / (double) max);
                         double x = centroX + distancia * Math.cos(angulo);
                         double y = centroY + distancia * Math.sin(angulo);
                         puntos.append(i == 0 ? "M" : "L").append(numero(x)).append(",")
@@ -323,7 +328,7 @@ public class GraficoCanvas {
                 // Marcadores y etiquetas de cada eje.
                 for (int i = 0; i < cantidad; i++) {
                         double angulo = -Math.PI / 2 + i * 2 * Math.PI / cantidad;
-                        double distancia = radio * (valores[i] / 4.0);
+                        double distancia = radio * (valores[i] / (double) max);
                         double x = centroX + distancia * Math.cos(angulo);
                         double y = centroY + distancia * Math.sin(angulo);
                         String etiqueta = i < etiquetas.length ? etiquetas[i] : ("#" + i);
@@ -331,7 +336,7 @@ public class GraficoCanvas {
                                         .append(numero(y)).append("' r='4' fill='#0b3d62'>")
                                         .append("<title>").append(escapar(etiqueta)).append(": ")
                                         .append(numero(Math.round(valores[i] * 100.0) / 100.0))
-                                        .append(" de 4</title></circle>");
+                                        .append(" de ").append(max).append("</title></circle>");
                         double xEtiqueta = centroX + radio * 1.22 * Math.cos(angulo);
                         double yEtiqueta = centroY + radio * 1.22 * Math.sin(angulo);
                         svg.append(texto(numero(xEtiqueta - 30), numero(yEtiqueta + 4),

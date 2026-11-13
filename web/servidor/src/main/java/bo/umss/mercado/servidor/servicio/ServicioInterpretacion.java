@@ -33,7 +33,7 @@ public class ServicioInterpretacion {
         }
         double mediaGlobalZ = sumaPonderada / totalGlobal;
 
-        String contexto = detectarContexto(tabla.etiquetaX(), tabla.etiquetaY());
+        String contexto = detectarContexto(tabla.etiquetaX(), tabla.etiquetaY(), tabla.etiquetaZ());
         switch (contexto) {
             case "AREA_FINANCIAMIENTO" ->
                     sb.append(reglasAreaFinanciamiento(tabla, mediaGlobalZ, totalGlobal));
@@ -41,6 +41,12 @@ public class ServicioInterpretacion {
                     sb.append(reglasSectorCargo(tabla, mediaGlobalZ, totalGlobal));
             case "SATISFACCION_CONCORDANCIA" ->
                     sb.append(reglasSatisfaccionConcordancia(tabla, mediaGlobalZ, totalGlobal));
+            case "TAMANO_TIPO_LIKERT" ->
+                    sb.append(reglasTamanoTipoLikert(tabla, mediaGlobalZ, totalGlobal));
+            case "RUBRO_NIVEL_PROYECCION" ->
+                    sb.append(reglasRubroNivelProyeccion(tabla, mediaGlobalZ, totalGlobal));
+            case "TAMANO_TIPO_CARGOS" ->
+                    sb.append(reglasTamanoTipoCargos(tabla, mediaGlobalZ, totalGlobal));
             default -> { }
         }
 
@@ -49,15 +55,22 @@ public class ServicioInterpretacion {
         return sb.toString();
     }
 
-    private String detectarContexto(String x, String y) {
+    private String detectarContexto(String x, String y, String z) {
         String xl = x.toLowerCase();
         String yl = y.toLowerCase();
+        String zl = z == null ? "" : z.toLowerCase();
         if ((xl.contains("area") || xl.contains("área")) && yl.contains("financ"))
             return "AREA_FINANCIAMIENTO";
         if (xl.contains("sector") && yl.contains("cargo"))
             return "SECTOR_CARGO";
         if (xl.contains("satisf") && yl.contains("concord"))
             return "SATISFACCION_CONCORDANCIA";
+        if (xl.contains("tamano") && yl.contains("tipo") && zl.contains("likert"))
+            return "TAMANO_TIPO_LIKERT";
+        if (xl.contains("rubro") && yl.contains("nivel") && zl.contains("proyecc"))
+            return "RUBRO_NIVEL_PROYECCION";
+        if (xl.contains("tamano") && yl.contains("tipo") && zl.contains("cargo"))
+            return "TAMANO_TIPO_CARGOS";
         return "GENERICO";
     }
 
@@ -211,6 +224,82 @@ public class ServicioInterpretacion {
         }
 
         return sb.toString();
+    }
+
+    private String reglasTamanoTipoLikert(TablaMultivariable tabla,
+            double mediaGlobalZ, int totalGlobal) {
+        StringBuilder sb = new StringBuilder();
+        Map<String, List<CeldaMultivariable>> porTamano = agruparPorX(tabla);
+        for (var entry : porTamano.entrySet()) {
+            for (var c : entry.getValue()) {
+                if (c.n() == 0 || Double.isNaN(c.mediaZ())) continue;
+                String direccion = c.mediaZ() > mediaGlobalZ * 1.05 ? "por encima"
+                        : c.mediaZ() < mediaGlobalZ * 0.95 ? "por debajo"
+                                : "en línea";
+                sb.append("• ").append(entry.getKey()).append(" / ").append(c.valorY())
+                        .append(": ").append(c.n()).append(" organizaciones, media Likert ")
+                        .append(String.format(Locale.US, "%.2f", c.mediaZ()))
+                        .append("/3 (").append(direccion).append(" del promedio global ")
+                        .append(String.format(Locale.US, "%.2f", mediaGlobalZ)).append(").\n");
+            }
+        }
+        sb.append("• Lectura: las percepciones institucionales más altas provienen de ")
+                .append(perfilConMayorMedia(tabla))
+                .append("; se sugiere reforzar los vínculos diferenciados por perfil.\n");
+        return sb.toString();
+    }
+
+    private String reglasRubroNivelProyeccion(TablaMultivariable tabla,
+            double mediaGlobalZ, int totalGlobal) {
+        StringBuilder sb = new StringBuilder();
+        for (var c : tabla.celdas()) {
+            if (c.n() == 0 || Double.isNaN(c.mediaZ())) continue;
+            String nivelProy = c.mediaZ() >= 2.5 ? "alta" : c.mediaZ() >= 1.5 ? "media" : "baja";
+            sb.append("• ").append(c.valorX()).append(" + ").append(c.valorY())
+                    .append(": ").append(c.n()).append(" organizaciones, proyección ")
+                    .append(nivelProy).append(" (media ")
+                    .append(String.format(Locale.US, "%.2f", c.mediaZ()))
+                    .append("/3).\n");
+        }
+        sb.append("• Lectura: la proyección de contratación difiere por combinación de rubro y ")
+                .append("nivel académico exigido. El promedio global de proyección es ")
+                .append(String.format(Locale.US, "%.2f", mediaGlobalZ)).append("/3.\n");
+        return sb.toString();
+    }
+
+    private String reglasTamanoTipoCargos(TablaMultivariable tabla,
+            double mediaGlobalZ, int totalGlobal) {
+        StringBuilder sb = new StringBuilder();
+        for (var c : tabla.celdas()) {
+            if (c.n() == 0 || Double.isNaN(c.mediaZ())) continue;
+            sb.append("• ").append(c.valorX()).append(" / ").append(c.valorY())
+                    .append(": ").append(c.n()).append(" organizaciones, ")
+                    .append(String.format(Locale.US, "%.2f", c.mediaZ()))
+                    .append(" cargos demandados en promedio.\n");
+        }
+        CeldaMultivariable max = null;
+        for (var c : tabla.celdas()) {
+            if (c.n() > 0 && !Double.isNaN(c.mediaZ())
+                    && (max == null || c.mediaZ() > max.mediaZ())) max = c;
+        }
+        if (max != null) {
+            sb.append("• Mayor variedad de cargos: ").append(max.valorX())
+                    .append(" / ").append(max.valorY()).append(" (")
+                    .append(String.format(Locale.US, "%.2f", max.mediaZ()))
+                    .append(" cargos). Las organizaciones grandes demandan perfiles más diversos ")
+                    .append("(técnicos + analistas + jefaturas).\n");
+        }
+        return sb.toString();
+    }
+
+    private String perfilConMayorMedia(TablaMultivariable tabla) {
+        CeldaMultivariable max = null;
+        for (var c : tabla.celdas()) {
+            if (c.n() > 0 && !Double.isNaN(c.mediaZ())
+                    && (max == null || c.mediaZ() > max.mediaZ())) max = c;
+        }
+        return max == null ? "sin datos"
+                : max.valorX() + " del sector " + max.valorY();
     }
 
     private String reglasGenericas(TablaMultivariable tabla,

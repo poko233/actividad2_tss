@@ -434,6 +434,15 @@ public class ServicioAnalisis {
     }
 
     public String valorDerivado(Map<String, String> f, String columna) {
+        if (columna.startsWith("likert_") && columna.endsWith("_grupo")) {
+            String base = columna.substring(0, columna.length() - "_grupo".length());
+            String raw = f.getOrDefault(base, "");
+            String norm = LimpiezaDatos.normalizar(raw);
+            if (norm.contains("TOTALMENTE_DESACUERDO")) return "Desacuerdo";
+            if (norm.contains("TOTALMENTE_ACUERDO") || norm.contains("PARCIALMENTE_ACUERDO"))
+                return "Acuerdo";
+            return "";
+        }
         switch (columna) {
             case "segmento_antiguedad":
                 return segmentoDe(parseAnios(f));
@@ -525,6 +534,24 @@ public class ServicioAnalisis {
                 if (!c.isEmpty()) return "Desarrollo";
                 return "";
             }
+            case "nivel_academico_grupo": {
+                String n = f.getOrDefault("nivel_formacion_demanda", "");
+                if (n.equals("LICENCIATURA")) return "Licenciatura";
+                if (n.isEmpty()) return "";
+                return "Posgrado";
+            }
+            case "proyeccion_num": {
+                String p = f.getOrDefault("posibilidad_futura_contratacion", "");
+                if (p.equals("ALTA_PROBABILIDAD")) return "3";
+                if (p.equals("DEPENDE_CRECIMIENTO")) return "2";
+                if (p.equals("NO_PREVISTA") || p.equals("NO_REQUIERE")) return "1";
+                return "";
+            }
+            case "cantidad_cargos": {
+                String c = f.getOrDefault("cargos_desempenados", "");
+                if (c.isEmpty()) return "";
+                return String.valueOf(c.split("\\|").length);
+            }
             default:
                 return null;
         }
@@ -547,6 +574,18 @@ public class ServicioAnalisis {
         if ("media_likert_global".equals(columna)) return mediaLikertGlobal(fila);
         if ("remuneracion_rango".equals(columna))
             return numeroDeRemuneracion(fila.getOrDefault("remuneracion_rango", ""));
+        if ("proyeccion_num".equals(columna)) {
+            String p = fila.getOrDefault("posibilidad_futura_contratacion", "");
+            if (p.equals("ALTA_PROBABILIDAD")) return 3;
+            if (p.equals("DEPENDE_CRECIMIENTO")) return 2;
+            if (p.equals("NO_PREVISTA") || p.equals("NO_REQUIERE")) return 1;
+            return Double.NaN;
+        }
+        if ("cantidad_cargos".equals(columna)) {
+            String c = fila.getOrDefault("cargos_desempenados", "");
+            if (c.isEmpty()) return Double.NaN;
+            return (double) c.split("\\|").length;
+        }
         return parseAnios(fila, columna);
     }
 

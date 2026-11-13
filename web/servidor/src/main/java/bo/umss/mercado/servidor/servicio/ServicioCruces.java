@@ -47,7 +47,8 @@ public class ServicioCruces {
         c.add(armarCruce("Sector x Remuneracion", "sector", "remuneracion_grupo", m));
         c.add(armarCruce("Genero x Remuneracion", "genero", "remuneracion_grupo", m));
         c.add(armarCruce("Formacion Continua x Remuneracion", "formacion_grupo", "remuneracion_grupo", m));
-        c.add(armarCruce("Formacion Continua x Interes Posgrado", "realizo_formacion_complementaria", "interes_posgrado", m));
+        c.add(armarCruce("Formacion Continua x Interes Posgrado", "realizo_formacion_complementaria",
+                "interes_posgrado", m));
         c.add(armarCruce("Nivel de Posgrado x Lugar", "nivel_grupo", "lugar_grupo", m));
         c.add(armarCruce("Percepcion FCyT x Organizacion Preferida", "percepcion_grupo", "organizacion_grupo", m));
         c.add(armarCruce("Cohorte x Area de Interes Posgrado", "segmento_antiguedad", "area_interes_grupo", m));
@@ -59,29 +60,31 @@ public class ServicioCruces {
     public List<FichaCruce> crucesEmpleadores() {
         List<Map<String, String>> m = analisis.mapasEmpleadores();
         List<FichaCruce> c = new ArrayList<>();
-        c.add(armarCruce("4.2.1 Tamano x Proyeccion", "tamano_agrupado", "posibilidad_futura_contratacion", m));
-        c.add(armarCruce("4.2.1 Tamano x Medio", "tamano_agrupado", "medio_convocatoria", m));
-        c.add(armarCruce("4.2.1 Tipo x Nivel Academico", "tipo_organizacion", "nivel_formacion_demanda", m));
-        c.add(armarCruce("4.2.1 Rubro x Nivel Academico", "rubro_agrupado", "nivel_formacion_demanda", m));
-        c.add(armarCruce("4.2.2 Demanda IA x Tamano", "demanda_ia", "tamano_agrupado", m));
-        c.add(armarCruce("4.2.2 Demanda IA x Sector", "demanda_ia", "rubro_agrupado", m));
-        c.add(armarCruce("4.2.3 L8 (competencias) x L6 (desempeno)",
-                "likert_competencias_laborales", "likert_formacion_desempeno", m));
-        c.add(armarCruce("4.2.3 L11 (vinculos) x L17 (recurre UMSS)",
-                "likert_vinculos_organizaciones", "likert_recurre_umss", m));
-        c.add(armarCruce("4.2.3 L3 (consulta) x L7 (incorpora)",
-                "likert_consulta_regular", "likert_considera_opinion", m));
+        c.add(armarCruce("Tamano x Proyeccion", "tamano_agrupado", "posibilidad_futura_contratacion", m));
+        c.add(armarCruce("Tamano x Medio", "tamano_agrupado", "medio_convocatoria", m));
+        c.add(armarCruce("Tipo x Nivel Academico", "tipo_organizacion", "nivel_formacion_demanda", m));
+        c.add(armarCruce("Rubro x Nivel Academico", "rubro_agrupado", "nivel_formacion_demanda", m));
+        c.add(armarCruce("Demanda IA x Tamano", "demanda_ia", "tamano_agrupado", m));
+        c.add(armarCruce("Demanda IA x Sector", "demanda_ia", "rubro_agrupado", m));
+        c.add(armarCruce("L8 (Competencias) x L6 (Desempeño)",
+                "likert_competencias_laborales_grupo", "likert_formacion_desempeno_grupo", m));
+        c.add(armarCruce("L11 (Vínculos) x L17 (Recurre UMSS)",
+                "likert_vinculos_organizaciones_grupo", "likert_recurre_umss_grupo", m));
+        c.add(armarCruce("L3 (Consulta) x L7 (Incorpora)",
+                "likert_consulta_regular_grupo", "likert_considera_opinion_grupo", m));
         return c;
     }
 
     public record FilaMatrizBivariada(
             String etiqueta, double chi, int gl, double pOriginal,
             double pHolm, double vCramer, String intensidad,
-            boolean significativa) {}
+            boolean significativa) {
+    }
 
     private List<FilaMatrizBivariada> matrizDesdeCruces(List<FichaCruce> cruces) {
         List<Double> ps = new ArrayList<>();
-        for (FichaCruce c : cruces) ps.add(c.resultado().valorP());
+        for (FichaCruce c : cruces)
+            ps.add(c.resultado().valorP());
         List<HolmCorreccion.ItemHolm> ajustados = HolmCorreccion.ajustar(ps);
 
         List<FilaMatrizBivariada> out = new ArrayList<>();
@@ -107,14 +110,16 @@ public class ServicioCruces {
 
     public List<double[]> wilsonPorFila(ResultadoChiCuadrada r) {
         List<double[]> out = new ArrayList<>();
-        if (r.observadas() == null) return out;
+        if (r.observadas() == null)
+            return out;
         for (int i = 0; i < r.observadas().length; i++) {
             long total = 0;
-            for (long v : r.observadas()[i]) total += v;
+            for (long v : r.observadas()[i])
+                total += v;
             for (int j = 0; j < r.observadas()[i].length; j++) {
                 long obs = r.observadas()[i][j];
                 double p = total == 0 ? Double.NaN : (double) obs / total;
-                double[] ic = {Double.NaN, Double.NaN};
+                double[] ic = { Double.NaN, Double.NaN };
                 if (!Double.isNaN(p) && total > 0) {
                     var w = bo.umss.mercado.nucleo.stats.IntervalosConfianza
                             .paraProporcion(p, (int) total);
