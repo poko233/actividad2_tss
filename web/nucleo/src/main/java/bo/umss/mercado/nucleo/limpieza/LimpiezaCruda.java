@@ -136,7 +136,7 @@ public class LimpiezaCruda {
             m.put("medio_obtencion_empleo", textoLibre(obtener(c, T_MEDIO_OBTENCION)));
             m.put("remuneracion_rango", textoLibre(obtener(c, T_REMUNERACION)));
             m.put("razon_no_trabaja", textoLibre(obtener(c, T_RAZON_NO_TRABAJA)));
-            m.put("ha_tenido_trabajo_antes", textoLibre(obtener(c, T_HA_TRABAJADO)));
+            m.put("ha_tenido_trabajo_antes", siNo(obtener(c, T_HA_TRABAJADO)));
             m.put("origen_emprendimiento", origenEmprendimiento(obtener(c, T_ORIGEN_EMP)));
             m.put("tipo_entregable_negocio", entregable(obtener(c, T_TIPO_ENTREG)));
             m.put("financiamiento_negocio", financiamientoNegocio(obtener(c, T_FIN_NEG)));
