@@ -49,7 +49,11 @@ public class ServicioExportacion {
             "likert_consulta_regular", "likert_conoce_perfil",
             "likert_coherencia_perfil", "likert_formacion_desempeno",
             "likert_considera_opinion", "likert_competencias_laborales",
-            "likert_valores_actitudes", "likert_participacion_procesos"};
+            "likert_valores_actitudes", "likert_participacion_procesos",
+            "likert_vinculos_organizaciones", "likert_participacion_vinculacion",
+            "likert_difusion_oportunidades", "likert_vinculacion_profesionales",
+            "likert_consultado_desempeno", "likert_consultado_pertinencia",
+            "likert_recurre_umss", "likert_consultado_autoevaluacion"};
 
     /** Nombres de los CSV disponibles (tambien se usan en la lista blanca). */
     public List<String> nombresDisponibles() {
@@ -217,12 +221,12 @@ public class ServicioExportacion {
             if (puntajes.isEmpty()) {
                 continue;
             }
-            long deAcuerdo = puntajes.stream().filter(p -> p >= 3).count();
+            long deAcuerdo = puntajes.stream().filter(p -> p >= 2).count();
             filas.add(List.of(item, String.valueOf(puntajes.size()),
                     String.valueOf(redondear(Numeros.promedio(puntajes), 2)),
                     String.valueOf(redondear(100.0 * deAcuerdo / puntajes.size(), 1))));
         }
-        return csv(List.of("item", "n", "media_escala_1_4", "porcentaje_de_acuerdo"), filas);
+        return csv(List.of("item", "n", "media_escala_1_3", "porcentaje_de_acuerdo"), filas);
     }
 
     // ---- Segmentacion por antiguedad (HU1) ----

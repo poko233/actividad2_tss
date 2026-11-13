@@ -117,16 +117,16 @@ public class ServicioAnalisis {
 
     public static String segmentoDe(double anios) {
         if (Double.isNaN(anios)) return "";
-        if (anios <= 3) return "JUNIOR (0-3 años)";
-        if (anios <= 7) return "INTERMEDIO (4-7 años)";
-        return "CONSOLIDADO (8+ años)";
+        if (anios <= 5) return "JUNIOR (0-5 años)";
+        if (anios <= 10) return "INTERMEDIO (6-10 años)";
+        return "CONSOLIDADO (>10 años)";
     }
 
     public List<FichaSegmento> fichasSegmentos() {
         Map<String, List<Map<String, String>>> grupos = new LinkedHashMap<>();
-        grupos.put("JUNIOR (0-3 años)", new ArrayList<>());
-        grupos.put("INTERMEDIO (4-7 años)", new ArrayList<>());
-        grupos.put("CONSOLIDADO (8+ años)", new ArrayList<>());
+        grupos.put("JUNIOR (0-5 años)", new ArrayList<>());
+        grupos.put("INTERMEDIO (6-10 años)", new ArrayList<>());
+        grupos.put("CONSOLIDADO (>10 años)", new ArrayList<>());
         for (Map<String, String> f : mapasTitulados()) {
             try {
                 double a = Double.parseDouble(f.getOrDefault("anios_vida_profesional", "").replace(",", "."));
@@ -150,8 +150,8 @@ public class ServicioAnalisis {
                 double a = Double.parseDouble(f.getOrDefault("anios_vida_profesional", "").replace(",", "."));
                 double s = EscalaLikert.traducir(f.getOrDefault("satisfaccion_formacion", ""), "satisfaccion_formacion");
                 if (Double.isNaN(s)) continue;
-                if (a <= 3) j.add(s);
-                else if (a >= 8) c.add(s);
+                if (a <= 5) j.add(s);
+                else if (a > 10) c.add(s);
             } catch (Exception ignored) {}
         }
         RangoConfianza r = IntervalosConfianza.paraDiferencia(j, c);
@@ -330,7 +330,9 @@ public class ServicioAnalisis {
         double m = Numeros.promedio(vals);
         double sd = Numeros.resumir(vals).desv();
         int acuerdos = 0;
-        for (double v : vals) if (v >= 2.5) acuerdos++;
+        int maxEscala = EscalaLikert.escalaMaximaDe(columna);
+        double umbral = maxEscala - 1;
+        for (double v : vals) if (v >= umbral) acuerdos++;
         double pct = 100.0 * acuerdos / vals.size();
         return new ResumenItem(columna,
                 ETIQUETA_ITEM.getOrDefault(columna, columna),
@@ -387,5 +389,212 @@ public class ServicioAnalisis {
             if (cnt > 0) medias.add(suma / cnt);
         }
         return medias;
+    }
+
+    // ================================================================
+    // CAPITULO 3 + 4 — Derivadas, agrupaciones y modelamiento multivariable
+    // ================================================================
+
+    public static String agruparLikert(String etiqueta) {
+        if (etiqueta == null || etiqueta.isEmpty()) return "";
+        String n = LimpiezaDatos.normalizar(etiqueta);
+        if (n.contains("DESACUERDO")) return "Baja";
+        if (n.contains("ACUERDO")) return "Alta";
+        return "";
+    }
+
+    public static double numeroDeRemuneracion(String rango) {
+        if (rango == null || rango.isEmpty()) return Double.NaN;
+        String n = LimpiezaDatos.normalizar(rango);
+        if (n.contains("MENOS_DE")) return 2000;
+        if (n.contains("MAS_DE")) return 12500;
+        if (n.contains("3.501")) return 4250.5;
+        if (n.contains("5.001")) return 6000.5;
+        if (n.contains("7.001")) return 8500.5;
+        if (n.contains("2.500")) return 3000;
+        return Double.NaN;
+    }
+
+    public double mediaLikertGlobal(Map<String, String> fila) {
+        double suma = 0;
+        int count = 0;
+        for (String item : ITEMS_LIKERT) {
+            double v = EscalaLikert.traducir(fila.getOrDefault(item, ""), item);
+            if (!Double.isNaN(v)) { suma += v; count++; }
+        }
+        return count == 0 ? Double.NaN : suma / count;
+    }
+
+    public String valorDerivado(Map<String, String> f, String columna) {
+        switch (columna) {
+            case "segmento_antiguedad":
+                return segmentoDe(parseAnios(f));
+            case "edad_rango": {
+                double e = parseAnios(f, "edad");
+                if (Double.isNaN(e)) return "";
+                if (e <= 22) return "19-22";
+                if (e <= 26) return "23-26";
+                if (e <= 30) return "27-30";
+                if (e <= 34) return "31-34";
+                return "35+";
+            }
+            case "edad_grupo": {
+                double e = parseAnios(f, "edad");
+                if (Double.isNaN(e)) return "";
+                return e <= 34 ? "<=34" : "35+";
+            }
+            case "remuneracion_grupo": {
+                double v = numeroDeRemuneracion(f.getOrDefault("remuneracion_rango", ""));
+                if (Double.isNaN(v)) return "";
+                return v <= 7000 ? "<=7000" : ">7000";
+            }
+            case "formacion_grupo": {
+                String nivel = f.getOrDefault("nivel_posgrado", "");
+                if (nivel.isEmpty() || nivel.equals("DIPLOMADO")) return "Sin formacion o diplomado";
+                if (nivel.equals("MAESTRIA") || nivel.equals("ESPECIALIDAD") || nivel.equals("DOCTORADO"))
+                    return "Con maestria/especialidad";
+                return "";
+            }
+            case "nivel_grupo": {
+                String nivel = f.getOrDefault("nivel_posgrado", "");
+                if (nivel.equals("DIPLOMADO")) return "Diplomado";
+                if (nivel.equals("MAESTRIA") || nivel.equals("ESPECIALIDAD") || nivel.equals("DOCTORADO"))
+                    return "Posgrado";
+                return "";
+            }
+            case "lugar_grupo": {
+                String inst = f.getOrDefault("institucion_formacion", "");
+                if (inst.equals("DIR_POSGRADO_FCyT") || inst.equals("EUPG")) return "UMSS";
+                if (inst.isEmpty()) return "";
+                return "Otras";
+            }
+            case "organizacion_grupo": {
+                String inst = f.getOrDefault("institucion_futura_posgrado", "");
+                if (inst.equals("DIR_POSGRADO_FCyT") || inst.equals("EUPG")) return "UMSS";
+                if (inst.isEmpty()) return "";
+                return "Otras";
+            }
+            case "percepcion_grupo":
+                return agruparLikert(f.getOrDefault("opinion_posgrado_fcyt", ""));
+            case "satisfaccion_grupo":
+                return agruparLikert(f.getOrDefault("satisfaccion_formacion", ""));
+            case "concordancia_grupo":
+                return agruparLikert(f.getOrDefault("concordancia_formacion_requerimientos", ""));
+            case "pertinencia_grupo":
+                return agruparLikert(f.getOrDefault("pertinencia_trabajo", ""));
+            case "tiempo_primer_grupo": {
+                String t = f.getOrDefault("tiempo_primer_empleo", "");
+                if (t.equals("YA_TRABAJABA")) return "Ya trabajaba";
+                if (t.equals("MENOS_1_MES") || t.equals("1_4_MESES")) return "<=4 meses";
+                if (t.equals("4_8_MESES") || t.equals("8_12_MESES") || t.equals("MAS_12_MESES"))
+                    return ">4 meses";
+                return "";
+            }
+            case "num_empleos_grupo": {
+                String n = f.getOrDefault("num_empleos_desde_titulacion", "");
+                if (n.equals("MAS_DE_3")) return "3+";
+                try {
+                    int v = Integer.parseInt(n);
+                    if (v == 1) return "1";
+                    if (v == 2) return "2";
+                    if (v >= 3) return "3+";
+                } catch (Exception ex) { }
+                return "";
+            }
+            case "area_interes_grupo": {
+                String a = f.getOrDefault("area_interes_posgrado", "");
+                if (a.equals("IA")) return "IA";
+                if (a.equals("ING_SOFTWARE")) return "Ing. Software";
+                if (a.equals("REDES_SEGURIDAD")) return "Redes y Seguridad";
+                if (a.isEmpty()) return "";
+                return "Otras";
+            }
+            case "cargo_grupo": {
+                String c = LimpiezaDatos.normalizar(f.getOrDefault("cargo", ""));
+                if (c.contains("HELP") || c.contains("SOPORTE") || c.contains("OPERATIV")) return "Help Desk";
+                if (c.contains("EJECUTIV") || c.contains("GERENTE") || c.contains("JEFE") || c.contains("DIRECTOR")) return "Ejecutivo";
+                if (c.contains("TECNIC") || c.contains("ADMIN") || c.contains("INFRAESTRUCTURA")) return "Técnico";
+                if (!c.isEmpty()) return "Desarrollo";
+                return "";
+            }
+            default:
+                return null;
+        }
+    }
+
+    private static double parseAnios(Map<String, String> f) {
+        return parseAnios(f, "anios_vida_profesional");
+    }
+
+    private static double parseAnios(Map<String, String> f, String columna) {
+        try {
+            String v = f.getOrDefault(columna, "").replace(",", ".");
+            return v.isEmpty() ? Double.NaN : Double.parseDouble(v);
+        } catch (NumberFormatException e) {
+            return Double.NaN;
+        }
+    }
+
+    private double numericoDe(Map<String, String> fila, String columna) {
+        if ("media_likert_global".equals(columna)) return mediaLikertGlobal(fila);
+        if ("remuneracion_rango".equals(columna))
+            return numeroDeRemuneracion(fila.getOrDefault("remuneracion_rango", ""));
+        return parseAnios(fila, columna);
+    }
+
+    public record CeldaMultivariable(String valorX, String valorY, int n, double mediaZ) {}
+
+    public record TablaMultivariable(
+            String etiquetaX, String etiquetaY, String etiquetaZ,
+            List<String> valoresX, List<String> valoresY,
+            List<CeldaMultivariable> celdas) {}
+
+    public TablaMultivariable tablaMultivariable(
+            List<Map<String, String>> mapas,
+            String etiquetaX, String etiquetaY, String etiquetaZ) {
+
+        java.util.TreeSet<String> setX = new java.util.TreeSet<>();
+        java.util.TreeSet<String> setY = new java.util.TreeSet<>();
+        Map<String, Map<String, List<Double>>> grupos = new LinkedHashMap<>();
+
+        for (Map<String, String> fila : mapas) {
+            String dvX = valorDerivado(fila, etiquetaX);
+            String x = dvX != null ? dvX : fila.getOrDefault(etiquetaX, "");
+            String dvY = valorDerivado(fila, etiquetaY);
+            String y = dvY != null ? dvY : fila.getOrDefault(etiquetaY, "");
+            double z = numericoDe(fila, etiquetaZ);
+            if (x.isEmpty() || y.isEmpty() || Double.isNaN(z)) continue;
+            setX.add(x);
+            setY.add(y);
+            grupos.computeIfAbsent(x, k -> new LinkedHashMap<>())
+                  .computeIfAbsent(y, k -> new ArrayList<>())
+                  .add(z);
+        }
+
+        List<CeldaMultivariable> celdas = new ArrayList<>();
+        for (String x : setX) {
+            for (String y : setY) {
+                List<Double> valores = grupos.getOrDefault(x, java.util.Map.of())
+                        .getOrDefault(y, java.util.List.of());
+                if (valores.isEmpty()) {
+                    celdas.add(new CeldaMultivariable(x, y, 0, Double.NaN));
+                } else {
+                    double suma = 0;
+                    for (double v : valores) suma += v;
+                    celdas.add(new CeldaMultivariable(x, y, valores.size(), suma / valores.size()));
+                }
+            }
+        }
+
+        return new TablaMultivariable(etiquetaX, etiquetaY, etiquetaZ,
+                new ArrayList<>(setX), new ArrayList<>(setY), celdas);
+    }
+
+    public TablaMultivariable tablaMultivariableTitulados(String colX, String colY, String colZ) {
+        return tablaMultivariable(mapasTitulados(), colX, colY, colZ);
+    }
+
+    public TablaMultivariable tablaMultivariableEmpleadores(String colX, String colY) {
+        return tablaMultivariable(mapasEmpleadores(), colX, colY, "media_likert_global");
     }
 }

@@ -4,10 +4,14 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.TreeSet;
 import org.apache.commons.math3.stat.inference.ChiSquareTest;
 
 public class PruebaChiCuadrada {
+
+    private static final int REPLICAS_MC = 10000;
+    private static final long SEMILLA_MC = 20261113L;
 
     public static ResultadoChiCuadrada cruzar(List<String> colA, List<String> colB) {
         List<String[]> pares = new ArrayList<>();
@@ -55,21 +59,29 @@ public class PruebaChiCuadrada {
                 if (esp[i][j] < 5) celdasBajas++;
             }
         boolean cochranViolado = celdasBajas > (r * c * 0.2);
-        boolean usarMC = cochranViolado && (r * c) <= 30;
 
         double chi = Double.NaN;
         double p = Double.NaN;
-        String metodo = "chi2 de Pearson";
+        String metodo = "chi2 de Pearson (asintotico)";
         try {
             ChiSquareTest test = new ChiSquareTest();
             chi = test.chiSquare(obs);
-            // chiSquareTest(long[][]) devuelve el p-valor (aproximado).
-            p = test.chiSquareTest(obs);
-            if (usarMC) {
-                metodo = "chi2 + Monte Carlo (10000 replicas, Cochran violado)";
+            if (cochranViolado) {
+                p = monteCarloPermutacion(obs, chi, REPLICAS_MC);
+                metodo = "chi2 + Monte Carlo (permutacion, " + REPLICAS_MC + " replicas, Cochran violado)";
+            } else {
+                p = test.chiSquareTest(obs);
             }
-        } catch (Exception e) {
-            // queda NaN
+        } catch (Exception ex) {
+            try {
+                if (Double.isNaN(chi)) {
+                    chi = new ChiSquareTest().chiSquare(obs);
+                }
+                p = monteCarloPermutacion(obs, chi, REPLICAS_MC);
+                metodo = "chi2 + Monte Carlo (fallback por error asintotico)";
+            } catch (Exception ex2) {
+                // queda NaN
+            }
         }
 
         int gl = (r - 1) * (c - 1);
@@ -79,8 +91,55 @@ public class PruebaChiCuadrada {
             v = Math.sqrt(chi / (n * (double) glMin));
         }
 
+        boolean usoMonteCarloFinal = metodo.contains("Monte Carlo");
         return new ResultadoChiCuadrada(
                 chi, gl, p, (int) n, filas, columnas, obs, esp,
-                cochranViolado, usarMC, metodo, v);
+                cochranViolado, usoMonteCarloFinal, metodo, v);
+    }
+
+    private static double monteCarloPermutacion(long[][] obs, double chiObservado, int replicas) {
+        int r = obs.length;
+        int c = obs[0].length;
+
+        List<Integer> filas = new ArrayList<>();
+        List<Integer> cols = new ArrayList<>();
+        for (int i = 0; i < r; i++) {
+            for (int j = 0; j < c; j++) {
+                long v = obs[i][j];
+                for (long k = 0; k < v; k++) {
+                    filas.add(i);
+                    cols.add(j);
+                }
+            }
+        }
+        if (filas.isEmpty()) return Double.NaN;
+
+        int[] colArr = new int[cols.size()];
+        for (int i = 0; i < cols.size(); i++) colArr[i] = cols.get(i);
+        Random rnd = new Random(SEMILLA_MC);
+        ChiSquareTest test = new ChiSquareTest();
+        int coincidencias = 0;
+
+        for (int rep = 0; rep < replicas; rep++) {
+            shuffleInt(colArr, rnd);
+            long[][] permObs = new long[r][c];
+            for (int i = 0; i < filas.size(); i++) {
+                permObs[filas.get(i)][colArr[i]]++;
+            }
+            try {
+                double chiPerm = test.chiSquare(permObs);
+                if (chiPerm >= chiObservado) coincidencias++;
+            } catch (Exception excepcionNumerica) {
+                // Se ignora esa réplica (margen degenerado raro)
+            }
+        }
+        return (coincidencias + 1.0) / (replicas + 1.0);
+    }
+
+    private static void shuffleInt(int[] a, Random rnd) {
+        for (int i = a.length - 1; i > 0; i--) {
+            int j = rnd.nextInt(i + 1);
+            int tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+        }
     }
 }

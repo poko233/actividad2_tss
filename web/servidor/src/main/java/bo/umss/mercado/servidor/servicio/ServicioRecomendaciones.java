@@ -44,7 +44,7 @@ public class ServicioRecomendaciones {
 
         List<Double> consulta = analisis.likertDe(analisis.mapasEmpleadores(),
                 "likert_consulta_regular");
-        long deAcuerdo = consulta.stream().filter(p -> p >= 3).count();
+        long deAcuerdo = consulta.stream().filter(p -> p >= 2).count();
         if (!consulta.isEmpty() && deAcuerdo * 100.0 / consulta.size() < 50) {
             recomendaciones.add(
                     "Consulta al empleador baja -> activar observatorio permanente.");

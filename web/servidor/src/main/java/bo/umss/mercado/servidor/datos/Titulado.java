@@ -7,17 +7,12 @@ import jakarta.persistence.Id;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-// Titulado: UNA fila = UN encuestado. Espejo exacto de titulados.csv
-// (las 35 preguntas de la encuesta, §1.1 de la especificación).
-// Todo se guarda como texto (igual que el CSV); los números se
-// convierten solo al momento de calcular. Así nada se pierde.
-// Hibernate crea sola la tabla "titulado" a partir de esta clase.
 @Entity
 public class Titulado {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id; // número interno de la base (no es el de la encuesta)
+    private Long id;
 
     private String idTitulado = "";
     private String edad = "";
@@ -34,6 +29,21 @@ public class Titulado {
     private String aniosVidaProfesional = "";
     private String aniosDesempleado = "";
     private String situacionLaboralActual = "";
+    private String nombreEmpresa = "";
+    private String rubro = "";
+    private String otroRubro = "";
+    private String sector = "";
+    private String departamento = "";
+    private String areaOrganizacion = "";
+    private String otraArea = "";
+    private String cargo = "";
+    private String otroCargo = "";
+    private String pertinenciaTrabajo = "";
+    private String antiguedadPuesto = "";
+    private String medioObtencionEmpleo = "";
+    private String remuneracionRango = "";
+    private String razonNoTrabaja = "";
+    private String haTenidoTrabajoAntes = "";
     private String origenEmprendimiento = "";
     private String tipoEntregableNegocio = "";
     private String financiamientoNegocio = "";
@@ -55,7 +65,6 @@ public class Titulado {
     private String telefonoContacto = "";
     private String linkedinContacto = "";
 
-    // Getters y setters (acceso simple campo por campo).
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getIdTitulado() { return idTitulado; }
@@ -88,6 +97,36 @@ public class Titulado {
     public void setAniosDesempleado(String v) { this.aniosDesempleado = v; }
     public String getSituacionLaboralActual() { return situacionLaboralActual; }
     public void setSituacionLaboralActual(String v) { this.situacionLaboralActual = v; }
+    public String getNombreEmpresa() { return nombreEmpresa; }
+    public void setNombreEmpresa(String v) { this.nombreEmpresa = v; }
+    public String getRubro() { return rubro; }
+    public void setRubro(String v) { this.rubro = v; }
+    public String getOtroRubro() { return otroRubro; }
+    public void setOtroRubro(String v) { this.otroRubro = v; }
+    public String getSector() { return sector; }
+    public void setSector(String v) { this.sector = v; }
+    public String getDepartamento() { return departamento; }
+    public void setDepartamento(String v) { this.departamento = v; }
+    public String getAreaOrganizacion() { return areaOrganizacion; }
+    public void setAreaOrganizacion(String v) { this.areaOrganizacion = v; }
+    public String getOtraArea() { return otraArea; }
+    public void setOtraArea(String v) { this.otraArea = v; }
+    public String getCargo() { return cargo; }
+    public void setCargo(String v) { this.cargo = v; }
+    public String getOtroCargo() { return otroCargo; }
+    public void setOtroCargo(String v) { this.otroCargo = v; }
+    public String getPertinenciaTrabajo() { return pertinenciaTrabajo; }
+    public void setPertinenciaTrabajo(String v) { this.pertinenciaTrabajo = v; }
+    public String getAntiguedadPuesto() { return antiguedadPuesto; }
+    public void setAntiguedadPuesto(String v) { this.antiguedadPuesto = v; }
+    public String getMedioObtencionEmpleo() { return medioObtencionEmpleo; }
+    public void setMedioObtencionEmpleo(String v) { this.medioObtencionEmpleo = v; }
+    public String getRemuneracionRango() { return remuneracionRango; }
+    public void setRemuneracionRango(String v) { this.remuneracionRango = v; }
+    public String getRazonNoTrabaja() { return razonNoTrabaja; }
+    public void setRazonNoTrabaja(String v) { this.razonNoTrabaja = v; }
+    public String getHaTenidoTrabajoAntes() { return haTenidoTrabajoAntes; }
+    public void setHaTenidoTrabajoAntes(String v) { this.haTenidoTrabajoAntes = v; }
     public String getOrigenEmprendimiento() { return origenEmprendimiento; }
     public void setOrigenEmprendimiento(String v) { this.origenEmprendimiento = v; }
     public String getTipoEntregableNegocio() { return tipoEntregableNegocio; }
@@ -129,8 +168,6 @@ public class Titulado {
     public String getLinkedinContacto() { return linkedinContacto; }
     public void setLinkedinContacto(String v) { this.linkedinContacto = v; }
 
-    // comoMapa(): la fila como COLUMNA_CSV -> VALOR (mismas claves que el
-    // CSV) para que el núcleo de análisis la procese sin cambios.
     public Map<String, String> comoMapa() {
         Map<String, String> fila = new LinkedHashMap<>();
         fila.put("id_titulado", idTitulado);
@@ -148,6 +185,21 @@ public class Titulado {
         fila.put("anios_vida_profesional", aniosVidaProfesional);
         fila.put("anios_desempleado", aniosDesempleado);
         fila.put("situacion_laboral_actual", situacionLaboralActual);
+        fila.put("nombre_empresa", nombreEmpresa);
+        fila.put("rubro", rubro);
+        fila.put("otro_rubro", otroRubro);
+        fila.put("sector", sector);
+        fila.put("departamento", departamento);
+        fila.put("area_organizacion", areaOrganizacion);
+        fila.put("otra_area", otraArea);
+        fila.put("cargo", cargo);
+        fila.put("otro_cargo", otroCargo);
+        fila.put("pertinencia_trabajo", pertinenciaTrabajo);
+        fila.put("antiguedad_puesto", antiguedadPuesto);
+        fila.put("medio_obtencion_empleo", medioObtencionEmpleo);
+        fila.put("remuneracion_rango", remuneracionRango);
+        fila.put("razon_no_trabaja", razonNoTrabaja);
+        fila.put("ha_tenido_trabajo_antes", haTenidoTrabajoAntes);
         fila.put("origen_emprendimiento", origenEmprendimiento);
         fila.put("tipo_entregable_negocio", tipoEntregableNegocio);
         fila.put("financiamiento_negocio", financiamientoNegocio);
@@ -171,7 +223,6 @@ public class Titulado {
         return fila;
     }
 
-    // desdeMapa(): construye un Titulado desde una fila de CSV ya limpia.
     public static Titulado desdeMapa(Map<String, String> fila) {
         Titulado titulado = new Titulado();
         for (var entrada : fila.entrySet()) {
@@ -180,52 +231,49 @@ public class Titulado {
                 case "id_titulado" -> titulado.setIdTitulado(valor);
                 case "edad" -> titulado.setEdad(valor);
                 case "genero" -> titulado.setGenero(valor);
-                case "realizo_formacion_complementaria" ->
-                        titulado.setRealizoFormacionComplementaria(valor);
+                case "realizo_formacion_complementaria" -> titulado.setRealizoFormacionComplementaria(valor);
                 case "nivel_posgrado" -> titulado.setNivelPosgrado(valor);
                 case "institucion_formacion" -> titulado.setInstitucionFormacion(valor);
-                case "financiamiento_formacion" ->
-                        titulado.setFinanciamientoFormacion(valor);
+                case "financiamiento_formacion" -> titulado.setFinanciamientoFormacion(valor);
                 case "nombre_programa" -> titulado.setNombrePrograma(valor);
                 case "interes_posgrado" -> titulado.setInteresPosgrado(valor);
                 case "area_interes_posgrado" -> titulado.setAreaInteresPosgrado(valor);
-                case "institucion_futura_posgrado" ->
-                        titulado.setInstitucionFuturaPosgrado(valor);
+                case "institucion_futura_posgrado" -> titulado.setInstitucionFuturaPosgrado(valor);
                 case "opinion_posgrado_fcyt" -> titulado.setOpinionPosgradoFcyt(valor);
-                case "anios_vida_profesional" ->
-                        titulado.setAniosVidaProfesional(valor);
+                case "anios_vida_profesional" -> titulado.setAniosVidaProfesional(valor);
                 case "anios_desempleado" -> titulado.setAniosDesempleado(valor);
-                case "situacion_laboral_actual" ->
-                        titulado.setSituacionLaboralActual(valor);
-                case "origen_emprendimiento" ->
-                        titulado.setOrigenEmprendimiento(valor);
-                case "tipo_entregable_negocio" ->
-                        titulado.setTipoEntregableNegocio(valor);
-                case "financiamiento_negocio" ->
-                        titulado.setFinanciamientoNegocio(valor);
-                case "satisfaccion_negocio" ->
-                        titulado.setSatisfaccionNegocio(valor);
-                case "importancia_formacion_negocio" ->
-                        titulado.setImportanciaFormacionNegocio(valor);
-                case "primer_empleo_actual" ->
-                        titulado.setPrimerEmpleoActual(valor);
+                case "situacion_laboral_actual" -> titulado.setSituacionLaboralActual(valor);
+                case "nombre_empresa" -> titulado.setNombreEmpresa(valor);
+                case "rubro" -> titulado.setRubro(valor);
+                case "otro_rubro" -> titulado.setOtroRubro(valor);
+                case "sector" -> titulado.setSector(valor);
+                case "departamento" -> titulado.setDepartamento(valor);
+                case "area_organizacion" -> titulado.setAreaOrganizacion(valor);
+                case "otra_area" -> titulado.setOtraArea(valor);
+                case "cargo" -> titulado.setCargo(valor);
+                case "otro_cargo" -> titulado.setOtroCargo(valor);
+                case "pertinencia_trabajo" -> titulado.setPertinenciaTrabajo(valor);
+                case "antiguedad_puesto" -> titulado.setAntiguedadPuesto(valor);
+                case "medio_obtencion_empleo" -> titulado.setMedioObtencionEmpleo(valor);
+                case "remuneracion_rango" -> titulado.setRemuneracionRango(valor);
+                case "razon_no_trabaja" -> titulado.setRazonNoTrabaja(valor);
+                case "ha_tenido_trabajo_antes" -> titulado.setHaTenidoTrabajoAntes(valor);
+                case "origen_emprendimiento" -> titulado.setOrigenEmprendimiento(valor);
+                case "tipo_entregable_negocio" -> titulado.setTipoEntregableNegocio(valor);
+                case "financiamiento_negocio" -> titulado.setFinanciamientoNegocio(valor);
+                case "satisfaccion_negocio" -> titulado.setSatisfaccionNegocio(valor);
+                case "importancia_formacion_negocio" -> titulado.setImportanciaFormacionNegocio(valor);
+                case "primer_empleo_actual" -> titulado.setPrimerEmpleoActual(valor);
                 case "tiempo_primer_empleo" -> titulado.setTiempoPrimerEmpleo(valor);
-                case "num_empleos_desde_titulacion" ->
-                        titulado.setNumEmpleosDesdeTitulacion(valor);
-                case "satisfaccion_formacion" ->
-                        titulado.setSatisfaccionFormacion(valor);
-                case "concordancia_formacion_requerimientos" ->
-                        titulado.setConcordanciaFormacionRequerimientos(valor);
+                case "num_empleos_desde_titulacion" -> titulado.setNumEmpleosDesdeTitulacion(valor);
+                case "satisfaccion_formacion" -> titulado.setSatisfaccionFormacion(valor);
+                case "concordancia_formacion_requerimientos" -> titulado.setConcordanciaFormacionRequerimientos(valor);
                 case "aspectos_utiles" -> titulado.setAspectosUtiles(valor);
                 case "aspectos_mejorar" -> titulado.setAspectosMejorar(valor);
-                case "asignaturas_ventajosas" ->
-                        titulado.setAsignaturasVentajosas(valor);
-                case "asignaturas_inutiles" ->
-                        titulado.setAsignaturasInutiles(valor);
-                case "asignatura_ventajosa_otra" ->
-                        titulado.setAsignaturaVentajosaOtra(valor);
-                case "asignatura_inutil_otra" ->
-                        titulado.setAsignaturaInutilOtra(valor);
+                case "asignaturas_ventajosas" -> titulado.setAsignaturasVentajosas(valor);
+                case "asignaturas_inutiles" -> titulado.setAsignaturasInutiles(valor);
+                case "asignatura_ventajosa_otra" -> titulado.setAsignaturaVentajosaOtra(valor);
+                case "asignatura_inutil_otra" -> titulado.setAsignaturaInutilOtra(valor);
                 case "red_contactos" -> titulado.setRedContactos(valor);
                 case "email_contacto" -> titulado.setEmailContacto(valor);
                 case "telefono_contacto" -> titulado.setTelefonoContacto(valor);

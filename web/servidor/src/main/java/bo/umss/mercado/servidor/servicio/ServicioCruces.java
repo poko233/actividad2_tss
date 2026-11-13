@@ -18,19 +18,13 @@ public class ServicioCruces {
         this.analisis = analisis;
     }
 
-    // ---- helper: resuelve columnas derivadas ----
     private List<String> columnaDerivada(List<Map<String, String>> mapas, String columna) {
-        if (columna.equals("segmento_antiguedad")) {
-            List<String> s = new ArrayList<>();
-            for (Map<String, String> f : mapas) {
-                try {
-                    double a = Double.parseDouble(f.getOrDefault("anios_vida_profesional", "").replace(",", "."));
-                    s.add(ServicioAnalisis.segmentoDe(a));
-                } catch (Exception e) { s.add(""); }
-            }
-            return s;
+        List<String> salida = new ArrayList<>();
+        for (Map<String, String> f : mapas) {
+            String derivado = analisis.valorDerivado(f, columna);
+            salida.add(derivado != null ? derivado : f.getOrDefault(columna, ""));
         }
-        return analisis.columnaDe(mapas, columna);
+        return salida;
     }
 
     private FichaCruce armarCruce(String etiqueta, String colA, String colB,
@@ -41,35 +35,36 @@ public class ServicioCruces {
         return new FichaCruce(etiqueta, colA, colB, r, frase);
     }
 
-    // ================================================================
-    // CRUCES TITULADOS (HU1/HU2/HU3)
-    // ================================================================
     public List<FichaCruce> crucesTitulados() {
         List<Map<String, String>> m = analisis.mapasTitulados();
         List<FichaCruce> c = new ArrayList<>();
-        c.add(armarCruce("HU2: area x financiamiento", "area_interes_posgrado", "financiamiento_formacion", m));
-        c.add(armarCruce("HU2/HU3: nivel x institucion", "nivel_posgrado", "institucion_formacion", m));
-        c.add(armarCruce("HU3: financiamiento x nivel", "financiamiento_formacion", "nivel_posgrado", m));
-        c.add(armarCruce("HU1: situacion x satisfaccion", "situacion_laboral_actual", "satisfaccion_formacion", m));
-        c.add(armarCruce("HU1: antiguedad x intencion", "segmento_antiguedad", "interes_posgrado", m));
+        c.add(armarCruce("Edad x Situacion Laboral", "edad_rango", "situacion_laboral_actual", m));
+        c.add(armarCruce("Genero x Situacion Laboral", "genero", "situacion_laboral_actual", m));
+        c.add(armarCruce("Cohorte x Situacion Laboral", "segmento_antiguedad", "situacion_laboral_actual", m));
+        c.add(armarCruce("Genero x Tiempo al Primer Empleo", "genero", "tiempo_primer_grupo", m));
+        c.add(armarCruce("Cohorte x Numero de Empleos", "segmento_antiguedad", "num_empleos_grupo", m));
+        c.add(armarCruce("Edad x Remuneracion", "edad_grupo", "remuneracion_grupo", m));
+        c.add(armarCruce("Sector x Remuneracion", "sector", "remuneracion_grupo", m));
+        c.add(armarCruce("Genero x Remuneracion", "genero", "remuneracion_grupo", m));
+        c.add(armarCruce("Formacion Continua x Remuneracion", "formacion_grupo", "remuneracion_grupo", m));
+        c.add(armarCruce("Formacion Continua x Interes Posgrado", "realizo_formacion_complementaria", "interes_posgrado", m));
+        c.add(armarCruce("Nivel de Posgrado x Lugar", "nivel_grupo", "lugar_grupo", m));
+        c.add(armarCruce("Percepcion FCyT x Organizacion Preferida", "percepcion_grupo", "organizacion_grupo", m));
+        c.add(armarCruce("Cohorte x Area de Interes Posgrado", "segmento_antiguedad", "area_interes_grupo", m));
+        c.add(armarCruce("Satisfaccion Global x Concordancia", "satisfaccion_grupo", "concordancia_grupo", m));
+        c.add(armarCruce("Pertinencia del Trabajo x Satisfaccion", "pertinencia_grupo", "satisfaccion_grupo", m));
         return c;
     }
 
-    // ================================================================
-    // CRUCES EMPLEADORES (Chapter 4)
-    // ================================================================
     public List<FichaCruce> crucesEmpleadores() {
         List<Map<String, String>> m = analisis.mapasEmpleadores();
         List<FichaCruce> c = new ArrayList<>();
-        // 4.2.1 Perfil y Demanda
         c.add(armarCruce("4.2.1 Tamano x Proyeccion", "tamano_agrupado", "posibilidad_futura_contratacion", m));
         c.add(armarCruce("4.2.1 Tamano x Medio", "tamano_agrupado", "medio_convocatoria", m));
-        c.add(armarCruce("4.2.1 Tipo x Nivel academico", "tipo_organizacion", "nivel_formacion_demanda", m));
-        c.add(armarCruce("4.2.1 Rubro x Nivel academico", "rubro_agrupado", "nivel_formacion_demanda", m));
-        // 4.2.2 Competencias (IA binaria)
+        c.add(armarCruce("4.2.1 Tipo x Nivel Academico", "tipo_organizacion", "nivel_formacion_demanda", m));
+        c.add(armarCruce("4.2.1 Rubro x Nivel Academico", "rubro_agrupado", "nivel_formacion_demanda", m));
         c.add(armarCruce("4.2.2 Demanda IA x Tamano", "demanda_ia", "tamano_agrupado", m));
         c.add(armarCruce("4.2.2 Demanda IA x Sector", "demanda_ia", "rubro_agrupado", m));
-        // 4.2.3 Percepcion y Vinculacion (Likert x Likert)
         c.add(armarCruce("4.2.3 L8 (competencias) x L6 (desempeno)",
                 "likert_competencias_laborales", "likert_formacion_desempeno", m));
         c.add(armarCruce("4.2.3 L11 (vinculos) x L17 (recurre UMSS)",
@@ -79,16 +74,12 @@ public class ServicioCruces {
         return c;
     }
 
-    // ================================================================
-    // Matriz resumen bivariada con correccion de Holm (4.2.4)
-    // ================================================================
     public record FilaMatrizBivariada(
             String etiqueta, double chi, int gl, double pOriginal,
             double pHolm, double vCramer, String intensidad,
             boolean significativa, String metodo) {}
 
-    public List<FilaMatrizBivariada> matrizResumenEmpleadores() {
-        List<FichaCruce> cruces = crucesEmpleadores();
+    private List<FilaMatrizBivariada> matrizDesdeCruces(List<FichaCruce> cruces) {
         List<Double> ps = new ArrayList<>();
         for (FichaCruce c : cruces) ps.add(c.resultado().valorP());
         List<HolmCorreccion.ItemHolm> ajustados = HolmCorreccion.ajustar(ps);
@@ -106,7 +97,14 @@ public class ServicioCruces {
         return out;
     }
 
-    // Wilson IC por celda, util para el reporte
+    public List<FilaMatrizBivariada> matrizResumenTitulados() {
+        return matrizDesdeCruces(crucesTitulados());
+    }
+
+    public List<FilaMatrizBivariada> matrizResumenEmpleadores() {
+        return matrizDesdeCruces(crucesEmpleadores());
+    }
+
     public List<double[]> wilsonPorFila(ResultadoChiCuadrada r) {
         List<double[]> out = new ArrayList<>();
         if (r.observadas() == null) return out;
@@ -118,7 +116,8 @@ public class ServicioCruces {
                 double p = total == 0 ? Double.NaN : (double) obs / total;
                 double[] ic = {Double.NaN, Double.NaN};
                 if (!Double.isNaN(p) && total > 0) {
-                    var w = bo.umss.mercado.nucleo.stats.IntervalosConfianza.paraProporcion(p, (int) total);
+                    var w = bo.umss.mercado.nucleo.stats.IntervalosConfianza
+                            .paraProporcion(p, (int) total);
                     ic[0] = w.limiteInferior();
                     ic[1] = w.limiteSuperior();
                 }

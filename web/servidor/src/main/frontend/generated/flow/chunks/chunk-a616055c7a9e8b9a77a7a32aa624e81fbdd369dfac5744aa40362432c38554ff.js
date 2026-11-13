@@ -6,6 +6,7 @@ import 'Frontend/generated/jar-resources/vaadin-grid-flow-selection-column.js';
 import '@vaadin/text-field/src/vaadin-text-field.js';
 import '@vaadin/integer-field/src/vaadin-integer-field.js';
 import '@vaadin/form-layout/src/vaadin-form-layout.js';
+import '@vaadin/dialog/src/vaadin-dialog.js';
 import '@vaadin/vertical-layout/src/vaadin-vertical-layout.js';
 import '@vaadin/app-layout/src/vaadin-app-layout.js';
 import '@vaadin/tooltip/src/vaadin-tooltip.js';
