@@ -2,6 +2,7 @@ package bo.umss.mercado.servidor.servicio;
 
 import bo.umss.mercado.nucleo.likert.EscalaLikert;
 import bo.umss.mercado.nucleo.limpieza.LimpiezaDatos;
+import bo.umss.mercado.nucleo.stats.CronbachAlpha;
 import bo.umss.mercado.nucleo.stats.Frecuencias;
 import bo.umss.mercado.nucleo.stats.IntervalosConfianza;
 import bo.umss.mercado.nucleo.stats.Numeros;
@@ -17,9 +18,6 @@ import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 
-// ServicioAnalisis: TODA la estadística descriptiva en un solo lugar.
-// Lee filas de la base, las convierte a mapas y delega los cálculos
-// al núcleo. Las pantallas solo piden y muestran: aquí vive el cerebro.
 @Service
 public class ServicioAnalisis {
 
@@ -32,66 +30,53 @@ public class ServicioAnalisis {
         this.empleadores = empleadores;
     }
 
-    // ---- Lecturas básicas (de la base a listas simples) ----
-
+    // ================================================================
+    // Lecturas básicas
+    // ================================================================
     public List<Map<String, String>> mapasTitulados() {
-        List<Map<String, String>> mapas = new ArrayList<>();
-        titulados.findAll().forEach(t -> mapas.add(t.comoMapa()));
-        return mapas;
+        List<Map<String, String>> m = new ArrayList<>();
+        titulados.findAll().forEach(t -> m.add(t.comoMapa()));
+        return m;
     }
 
     public List<Map<String, String>> mapasEmpleadores() {
-        List<Map<String, String>> mapas = new ArrayList<>();
-        empleadores.findAll().forEach(e -> mapas.add(e.comoMapa()));
-        return mapas;
+        List<Map<String, String>> m = new ArrayList<>();
+        empleadores.findAll().forEach(e -> m.add(e.comoMapa()));
+        return m;
     }
 
-    // columnaDe(): todos los valores de UNA columna (textos tal cual).
     public List<String> columnaDe(List<Map<String, String>> mapas, String columna) {
-        List<String> valores = new ArrayList<>();
-        for (Map<String, String> fila : mapas) {
-            valores.add(fila.getOrDefault(columna, ""));
-        }
-        return valores;
+        List<String> v = new ArrayList<>();
+        for (Map<String, String> f : mapas) v.add(f.getOrDefault(columna, ""));
+        return v;
     }
 
-    // numerosDe(): la columna convertida a números (lo no numérico se salta).
     public List<Double> numerosDe(List<Map<String, String>> mapas, String columna) {
-        List<Double> valores = new ArrayList<>();
-        for (Map<String, String> fila : mapas) {
-            String texto = fila.getOrDefault(columna, "").replace(",", ".");
-            if (texto.isEmpty()) {
-                continue;
-            }
-            try {
-                valores.add(Double.parseDouble(texto));
-            } catch (NumberFormatException noEsNumero) {
-                // se salta en silencio, igual que en la limpieza
-            }
+        List<Double> v = new ArrayList<>();
+        for (Map<String, String> f : mapas) {
+            String t = f.getOrDefault(columna, "").replace(",", ".");
+            if (t.isEmpty()) continue;
+            try { v.add(Double.parseDouble(t)); } catch (NumberFormatException ignored) {}
         }
-        return valores;
+        return v;
     }
 
-    // likertDe(): la columna traducida a puntajes 1..4 (NO_SABE se salta).
     public List<Double> likertDe(List<Map<String, String>> mapas, String columna) {
-        List<Double> puntajes = new ArrayList<>();
-        for (Map<String, String> fila : mapas) {
-            double puntaje = EscalaLikert.traducir(fila.getOrDefault(columna, ""));
-            if (!Double.isNaN(puntaje)) {
-                puntajes.add(puntaje);
-            }
+        List<Double> v = new ArrayList<>();
+        for (Map<String, String> f : mapas) {
+            double p = EscalaLikert.traducir(f.getOrDefault(columna, ""), columna);
+            if (!Double.isNaN(p)) v.add(p);
         }
-        return puntajes;
+        return v;
     }
 
-    // ---- Indicadores listos para las pantallas (HU1/HU2/HU3) ----
-
+    // ================================================================
+    // Indicadores titulados (HU1/HU2/HU3)
+    // ================================================================
     public ResumenNumerico resumenNumerico(String columna) {
         return Numeros.resumir(numerosDe(mapasTitulados(), columna));
     }
 
-    // resumenNumericoDeValores(): mismo resumen pero de una lista ya
-    // calculada (ej. puntajes Likert filtrados por la vista).
     public ResumenNumerico resumenNumericoDeValores(List<Double> valores) {
         return Numeros.resumir(valores);
     }
@@ -100,186 +85,307 @@ public class ServicioAnalisis {
         return Frecuencias.contar(columnaDe(mapasTitulados(), columna));
     }
 
-    // proporcionDonde(): % de filas que cumplen una condición.
-    // Las vacías NO entran al denominador (no-respuesta ≠ negativo).
     public double proporcionDonde(List<Map<String, String>> mapas, String columna,
-            java.util.function.Predicate<String> condicion) {
-        int favorables = 0;
-        int conRespuesta = 0;
-        for (Map<String, String> fila : mapas) {
-            String valor = fila.getOrDefault(columna, "");
-            if (valor.isEmpty()) {
-                continue;
-            }
-            conRespuesta++;
-            if (condicion.test(valor)) {
-                favorables++;
-            }
+            java.util.function.Predicate<String> cond) {
+        int fav = 0, resp = 0;
+        for (Map<String, String> f : mapas) {
+            String v = f.getOrDefault(columna, "");
+            if (v.isEmpty()) continue;
+            resp++;
+            if (cond.test(v)) fav++;
         }
-        return conRespuesta == 0 ? Double.NaN : (double) favorables / conRespuesta;
+        return resp == 0 ? Double.NaN : (double) fav / resp;
     }
 
-    // Tasa de inserción: trabaja o emprende (HU1).
     public double tasaInsercion() {
         return proporcionDonde(mapasTitulados(), "situacion_laboral_actual",
                 v -> !LimpiezaDatos.normalizar(v).contains("NO_TRABAJA") && !v.isEmpty());
     }
 
-    // Intención de posgrado: marcó "SI" (HU2).
     public double intencionPosgrado() {
-        return proporcionDonde(mapasTitulados(), "interes_posgrado",
-                v -> v.equals("SI"));
+        return proporcionDonde(mapasTitulados(), "interes_posgrado", v -> v.equals("SI"));
     }
 
-    // Requiere beca: fuente con "BECA" total o parcial (HU3).
     public double proporcionRequiereBeca() {
         return proporcionDonde(mapasTitulados(), "financiamiento_formacion",
                 v -> LimpiezaDatos.normalizar(v).contains("BECA"));
     }
 
-    public RangoConfianza rangoDe(double proporcion, int total) {
-        return IntervalosConfianza.paraProporcion(proporcion, total);
+    public RangoConfianza rangoDe(double p, int n) {
+        return IntervalosConfianza.paraProporcion(p, n);
     }
 
-    // ---- Segmentación por antigüedad (HU1) ----
-
-    // segmentoDe(): Junior 0-3 (piden especialización inicial),
-    // Intermedio 4-7, Consolidado 8+ (mandos). Cortes de la guía.
-    public static String segmentoDe(double aniosVidaProfesional) {
-        if (Double.isNaN(aniosVidaProfesional)) {
-            return "";
-        }
-        if (aniosVidaProfesional <= 3) {
-            return "JUNIOR (0-3 años)";
-        }
-        if (aniosVidaProfesional <= 7) {
-            return "INTERMEDIO (4-7 años)";
-        }
+    public static String segmentoDe(double anios) {
+        if (Double.isNaN(anios)) return "";
+        if (anios <= 3) return "JUNIOR (0-3 años)";
+        if (anios <= 7) return "INTERMEDIO (4-7 años)";
         return "CONSOLIDADO (8+ años)";
     }
 
-    // fichasSegmentos(): una ficha por grupo para dibujar la tabla.
     public List<FichaSegmento> fichasSegmentos() {
         Map<String, List<Map<String, String>>> grupos = new LinkedHashMap<>();
         grupos.put("JUNIOR (0-3 años)", new ArrayList<>());
         grupos.put("INTERMEDIO (4-7 años)", new ArrayList<>());
         grupos.put("CONSOLIDADO (8+ años)", new ArrayList<>());
-        for (Map<String, String> fila : mapasTitulados()) {
+        for (Map<String, String> f : mapasTitulados()) {
             try {
-                double anios = Double.parseDouble(
-                        fila.getOrDefault("anios_vida_profesional", "")
-                                .replace(",", "."));
-                grupos.get(segmentoDe(anios)).add(fila);
-            } catch (Exception sinAntiguedad) {
-                // sin años no se puede segmentar: se salta
-            }
+                double a = Double.parseDouble(f.getOrDefault("anios_vida_profesional", "").replace(",", "."));
+                grupos.get(segmentoDe(a)).add(f);
+            } catch (Exception ignored) {}
         }
-        List<FichaSegmento> fichas = new ArrayList<>();
-        for (var grupo : grupos.entrySet()) {
-            List<Double> satisfacciones = likertDe(grupo.getValue(),
-                    "satisfaccion_formacion");
-            double satMedia = satisfacciones.isEmpty() ? Double.NaN
-                    : Numeros.promedio(satisfacciones);
-            double intencion = proporcionDonde(grupo.getValue(), "interes_posgrado",
-                    v -> v.equals("SI"));
-            List<Double> tasas = new ArrayList<>();
-            for (Map<String, String> fila : grupo.getValue()) {
-                try {
-                    double anios = Double.parseDouble(fila
-                            .getOrDefault("anios_vida_profesional", "0")
-                            .replace(",", "."));
-                    double desempleo = Double.parseDouble(fila
-                            .getOrDefault("anios_desempleado", "0")
-                            .replace(",", "."));
-                    if (anios > 0) {
-                        tasas.add(desempleo / anios);
-                    }
-                } catch (Exception sinDato) {
-                    // se salta
-                }
-            }
-            double tasaMedia = tasas.isEmpty() ? Double.NaN : Numeros.promedio(tasas);
-            fichas.add(new FichaSegmento(grupo.getKey(), grupo.getValue().size(),
-                    satMedia, intencion * 100, tasaMedia));
+        List<FichaSegmento> out = new ArrayList<>();
+        for (var g : grupos.entrySet()) {
+            List<Double> sat = likertDe(g.getValue(), "satisfaccion_formacion");
+            double m = sat.isEmpty() ? Double.NaN : Numeros.promedio(sat);
+            double inte = proporcionDonde(g.getValue(), "interes_posgrado", v -> v.equals("SI"));
+            out.add(new FichaSegmento(g.getKey(), g.getValue().size(), m, inte * 100, Double.NaN));
         }
-        return fichas;
+        return out;
     }
 
-    // fraseDiferenciaSegmentos(): ¿juniors y consolidados difieren?
-    // Si el IC incluye al 0, están IGUAL de satisfechos (§7.1 guía).
     public String fraseDiferenciaSegmentos() {
-        List<Double> juniors = new ArrayList<>();
-        List<Double> consolidados = new ArrayList<>();
-        for (Map<String, String> fila : mapasTitulados()) {
+        List<Double> j = new ArrayList<>(), c = new ArrayList<>();
+        for (Map<String, String> f : mapasTitulados()) {
             try {
-                double anios = Double.parseDouble(fila
-                        .getOrDefault("anios_vida_profesional", "").replace(",", "."));
-                double sat = EscalaLikert.traducir(
-                        fila.getOrDefault("satisfaccion_formacion", ""));
-                if (Double.isNaN(sat)) {
-                    continue;
-                }
-                if (anios <= 3) {
-                    juniors.add(sat);
-                } else if (anios >= 8) {
-                    consolidados.add(sat);
-                }
-            } catch (Exception sinDato) {
-                // se salta
-            }
+                double a = Double.parseDouble(f.getOrDefault("anios_vida_profesional", "").replace(",", "."));
+                double s = EscalaLikert.traducir(f.getOrDefault("satisfaccion_formacion", ""), "satisfaccion_formacion");
+                if (Double.isNaN(s)) continue;
+                if (a <= 3) j.add(s);
+                else if (a >= 8) c.add(s);
+            } catch (Exception ignored) {}
         }
-        RangoConfianza rango = IntervalosConfianza.paraDiferencia(juniors, consolidados);
-        if (Double.isNaN(rango.limiteInferior())) {
-            return "Aún no hay datos para comparar segmentos.";
-        }
-        boolean incluyeCero = rango.limiteInferior() <= 0 && 0 <= rango.limiteSuperior();
+        RangoConfianza r = IntervalosConfianza.paraDiferencia(j, c);
+        if (Double.isNaN(r.limiteInferior())) return "Aún no hay datos para comparar segmentos.";
+        boolean incluyeCero = r.limiteInferior() <= 0 && 0 <= r.limiteSuperior();
         return incluyeCero
                 ? "Juniors y consolidados están IGUAL de satisfechos."
                 : "Juniors y consolidados están DISTINTO de satisfechos.";
     }
 
-    // ---- Apoyos para panel y empleadores ----
-
-    // topCategorias(): las N más repetidas, sin contar "(VACIO)".
     public List<Map.Entry<String, Integer>> topCategorias(
-            Map<String, Integer> frecuencias, int cuantas) {
-        List<Map.Entry<String, Integer>> ordenadas = new ArrayList<>(frecuencias.entrySet());
-        ordenadas.sort(Comparator.comparing(Map.Entry<String, Integer>::getValue)
-                .reversed());
+            Map<String, Integer> frec, int n) {
+        List<Map.Entry<String, Integer>> ord = new ArrayList<>(frec.entrySet());
+        ord.sort(Comparator.comparing(Map.Entry<String, Integer>::getValue).reversed());
         List<Map.Entry<String, Integer>> top = new ArrayList<>();
-        for (var entrada : ordenadas) {
-            if (entrada.getKey().equals(Frecuencias.ETIQUETA_VACIO)) {
-                continue;
-            }
-            top.add(entrada);
-            if (top.size() >= cuantas) {
-                break;
-            }
+        for (var e : ord) {
+            if (e.getKey().equals(Frecuencias.ETIQUETA_VACIO)) continue;
+            top.add(e);
+            if (top.size() >= n) break;
         }
         return top;
     }
 
-    // competenciasMencionadas(): minería simple del texto libre del
-    // empleador: cuenta palabras (top N) saltando las vacías.
     public List<Map.Entry<String, Integer>> competenciasMencionadas(int cuantas) {
-        Map<String, Integer> conteo = new LinkedHashMap<>();
-        Set<String> vacias = Set.of("los", "las", "una", "uno", "con", "para",
-                "por", "que", "del", "y", "de", "la", "el", "en", "the", "and",
-                "conocimiento", "area", "areas", "requiere", "requieren");
-        for (Map<String, String> fila : mapasEmpleadores()) {
-            String texto = fila.getOrDefault(
-                    "habilidades_competencias_requeridas", "") + " "
-                    + fila.getOrDefault("areas_conocimiento_emergentes", "") + " "
-                    + fila.getOrDefault("herramientas_tecnologicas", "");
-            for (String palabra : texto.toLowerCase()
-                    .replaceAll("[^a-záéíóúñ0-9+#. ]", " ").split("\\s+")) {
-                palabra = palabra.trim();
-                if (palabra.length() < 3 || vacias.contains(palabra)) {
-                    continue;
-                }
-                conteo.put(palabra, conteo.getOrDefault(palabra, 0) + 1);
+        Map<String, Integer> c = new LinkedHashMap<>();
+        Set<String> vac = Set.of("los","las","una","uno","con","para","por","que","del","y","de","la","el","en","the","and","conocimiento","area","areas","requiere","requieren");
+        for (Map<String, String> f : mapasEmpleadores()) {
+            String t = f.getOrDefault("habilidades_competencias_requeridas", "") + " "
+                    + f.getOrDefault("areas_conocimiento_emergentes", "") + " "
+                    + f.getOrDefault("herramientas_tecnologicas", "");
+            for (String p : t.toLowerCase().replaceAll("[^a-záéíóúñ0-9+#. ]", " ").split("\\s+")) {
+                p = p.trim();
+                if (p.length() < 3 || vac.contains(p)) continue;
+                c.put(p, c.getOrDefault(p, 0) + 1);
             }
         }
-        return topCategorias(conteo, cuantas);
+        return topCategorias(c, cuantas);
+    }
+
+    // ================================================================
+    // Chapter 4 — EMPLEADORES
+    // ================================================================
+
+    // ---- 4.1.1 Caracterización (Tipo, Tamaño, Rubro) ----
+    public Map<String, Integer> frecuenciasEmpleadores(String columna) {
+        return Frecuencias.contar(columnaDe(mapasEmpleadores(), columna));
+    }
+
+    public Map<String, Integer> frecuenciasTipoOrg() {
+        return frecuenciasEmpleadores("tipo_organizacion");
+    }
+    public Map<String, Integer> frecuenciasTamano() {
+        return frecuenciasEmpleadores("tamano_organizacion");
+    }
+    public Map<String, Integer> frecuenciasTamanoAgrupado() {
+        return frecuenciasEmpleadores("tamano_agrupado");
+    }
+    public Map<String, Integer> frecuenciasSector() {
+        return frecuenciasEmpleadores("sector_rubro");
+    }
+    public Map<String, Integer> frecuenciasRubroAgrupado() {
+        return frecuenciasEmpleadores("rubro_agrupado");
+    }
+
+    // ---- 4.1.2 Demanda y proyección ----
+    public Map<String, Integer> frecuenciasContrato5a() {
+        return frecuenciasEmpleadores("contrato_ultimos_5_anios");
+    }
+    public Map<String, Integer> frecuenciasProyeccion() {
+        return frecuenciasEmpleadores("posibilidad_futura_contratacion");
+    }
+
+    // Distribución de menciones (para multi-selección con "|")
+    public Map<String, Integer> distribucionMulti(String columna) {
+        Map<String, Integer> c = new LinkedHashMap<>();
+        for (Map<String, String> f : mapasEmpleadores()) {
+            String v = f.getOrDefault(columna, "");
+            if (v.isEmpty()) continue;
+            for (String p : v.split("\\|")) {
+                p = p.trim();
+                if (!p.isEmpty()) c.put(p, c.getOrDefault(p, 0) + 1);
+            }
+        }
+        return c;
+    }
+
+    public Map<String, Integer> distribucionCargos() {
+        return distribucionMulti("cargos_desempenados");
+    }
+
+    public Map<String, Integer> distribucionMedio() {
+        return distribucionMulti("medio_convocatoria");
+    }
+
+    // ---- 4.1.3 Nivel académico ----
+    public Map<String, Integer> frecuenciasNivelAcademico() {
+        return frecuenciasEmpleadores("nivel_formacion_demanda");
+    }
+
+    // ---- 4.1.4 Análisis de contenido (tendencias, hard, soft, IA) ----
+    public Map<String, Integer> distribucionTendencias() {
+        return distribucionMulti("tendencias_categorias");
+    }
+    public Map<String, Integer> distribucionHardSkills() {
+        return distribucionMulti("hard_skills_categorias");
+    }
+    public Map<String, Integer> distribucionSoftSkills() {
+        return distribucionMulti("soft_skills_categorias");
+    }
+    public Map<String, Integer> frecuenciasDemandaIA() {
+        return frecuenciasEmpleadores("demanda_ia");
+    }
+    public double proporcionDemandaIA() {
+        return proporcionDonde(mapasEmpleadores(), "demanda_ia", v -> v.equals("SI"));
+    }
+
+    // ---- 4.1.5 Likert: 18 ítems + 2 dimensiones + ítem 4 individual ----
+    public static final List<String> ITEMS_LIKERT = List.of(
+            "likert_confianza_formadora", "likert_consistencia_titulo",
+            "likert_consulta_regular", "likert_conoce_perfil",
+            "likert_coherencia_perfil", "likert_formacion_desempeno",
+            "likert_considera_opinion", "likert_competencias_laborales",
+            "likert_valores_actitudes", "likert_participacion_procesos",
+            "likert_vinculos_organizaciones", "likert_participacion_vinculacion",
+            "likert_difusion_oportunidades", "likert_vinculacion_profesionales",
+            "likert_consultado_desempeno", "likert_consultado_pertinencia",
+            "likert_recurre_umss", "likert_consultado_autoevaluacion");
+
+    // Etiquetas legibles (para la vista y los CSV exportables)
+    public static final Map<String, String> ETIQUETA_ITEM = Map.ofEntries(
+            Map.entry("likert_confianza_formadora", "L1. Confianza como formadora"),
+            Map.entry("likert_consistencia_titulo", "L2. Consistencia del título"),
+            Map.entry("likert_consulta_regular", "L3. Consulta regular a empleadores"),
+            Map.entry("likert_conoce_perfil", "L4. Conoce el perfil de egreso"),
+            Map.entry("likert_coherencia_perfil", "L5. Coherencia del perfil"),
+            Map.entry("likert_formacion_desempeno", "L6. Formación permite desempeño destacado"),
+            Map.entry("likert_considera_opinion", "L7. Incorpora opinión en mejoras"),
+            Map.entry("likert_competencias_laborales", "L8. Desempeño evidencia competencias"),
+            Map.entry("likert_valores_actitudes", "L9. Valores y actitudes"),
+            Map.entry("likert_participacion_procesos", "L10. Participación en evaluación"),
+            Map.entry("likert_vinculos_organizaciones", "L11. Vínculos con organizaciones"),
+            Map.entry("likert_participacion_vinculacion", "L12. Participación en vinculación"),
+            Map.entry("likert_difusion_oportunidades", "L13. Difusión de oportunidades"),
+            Map.entry("likert_vinculacion_profesionales", "L14. Vinculación entre profesionales"),
+            Map.entry("likert_consultado_desempeno", "L15. Consultado sobre desempeño"),
+            Map.entry("likert_consultado_pertinencia", "L16. Consultado sobre pertinencia"),
+            Map.entry("likert_recurre_umss", "L17. Recurre a la UMSS"),
+            Map.entry("likert_consultado_autoevaluacion", "L18. Consultado en autoevaluación"));
+
+    // Dimensiones validadas empíricamente (Cap.2)
+    public static final List<String> DIM_A_ITEMS = List.of(
+            "likert_confianza_formadora", "likert_consistencia_titulo",
+            "likert_coherencia_perfil", "likert_formacion_desempeno",
+            "likert_competencias_laborales", "likert_valores_actitudes");
+    public static final List<String> DIM_B_ITEMS = List.of(
+            "likert_consulta_regular", "likert_considera_opinion",
+            "likert_participacion_procesos", "likert_vinculos_organizaciones",
+            "likert_participacion_vinculacion", "likert_difusion_oportunidades",
+            "likert_vinculacion_profesionales", "likert_consultado_desempeno",
+            "likert_consultado_pertinencia", "likert_recurre_umss",
+            "likert_consultado_autoevaluacion");
+    public static final String ITEM_INDEPENDIENTE = "likert_conoce_perfil";
+
+    public record ResumenItem(String columna, String etiqueta, int n,
+            double media, double desviacion, double pctAcuerdo) {}
+
+    public record ResumenDimension(String nombre, List<String> items,
+            double alpha, int n, String interpretacion) {}
+
+    // Resumen de UN ítem Likert (media, desv, % de acuerdo).
+    public ResumenItem resumenItem(String columna) {
+        List<Double> vals = likertDe(mapasEmpleadores(), columna);
+        if (vals.isEmpty()) return new ResumenItem(columna,
+                ETIQUETA_ITEM.getOrDefault(columna, columna), 0,
+                Double.NaN, Double.NaN, Double.NaN);
+        double m = Numeros.promedio(vals);
+        double sd = Numeros.resumir(vals).desv();
+        int acuerdos = 0;
+        for (double v : vals) if (v >= 2.5) acuerdos++;
+        double pct = 100.0 * acuerdos / vals.size();
+        return new ResumenItem(columna,
+                ETIQUETA_ITEM.getOrDefault(columna, columna),
+                vals.size(), m, sd, pct);
+    }
+
+    // Matriz de los 18 ítems.
+    public List<ResumenItem> matriz18Items() {
+        List<ResumenItem> out = new ArrayList<>();
+        for (String c : ITEMS_LIKERT) out.add(resumenItem(c));
+        return out;
+    }
+
+    // Ficha de una dimensión con su alfa + n de casos completos.
+    public ResumenDimension fichaDimension(String nombre, List<String> items) {
+        List<List<Double>> completas = new ArrayList<>();
+        for (Map<String, String> f : mapasEmpleadores()) {
+            List<Double> fila = new ArrayList<>();
+            boolean ok = true;
+            for (String c : items) {
+                double v = EscalaLikert.traducir(f.getOrDefault(c, ""), c);
+                if (Double.isNaN(v)) { ok = false; break; }
+                fila.add(v);
+            }
+            if (ok) completas.add(fila);
+        }
+        double alpha = CronbachAlpha.calcular(completas, items.size());
+        return new ResumenDimension(nombre, items, alpha, completas.size(),
+                CronbachAlpha.descripcion(alpha));
+    }
+
+    public ResumenDimension fichaDimensionA() {
+        return fichaDimension("A. Calidad e Imagen", DIM_A_ITEMS);
+    }
+
+    public ResumenDimension fichaDimensionB() {
+        return fichaDimension("B. Vinculación y Retroalimentación", DIM_B_ITEMS);
+    }
+
+    public ResumenItem fichaItem4() {
+        return resumenItem(ITEM_INDEPENDIENTE);
+    }
+
+    // Media de la DIMENSIÓN por encuestado (promedio de sus ítems no vacíos).
+    public List<Double> mediasPorDimension(String dim) {
+        List<String> items = dim.equals("A") ? DIM_A_ITEMS : DIM_B_ITEMS;
+        List<Double> medias = new ArrayList<>();
+        for (Map<String, String> f : mapasEmpleadores()) {
+            double suma = 0; int cnt = 0;
+            for (String c : items) {
+                double v = EscalaLikert.traducir(f.getOrDefault(c, ""), c);
+                if (!Double.isNaN(v)) { suma += v; cnt++; }
+            }
+            if (cnt > 0) medias.add(suma / cnt);
+        }
+        return medias;
     }
 }

@@ -179,7 +179,7 @@ public class ServicioExportacion {
             fila.add(resultado.filas().get(f));
             int totalFila = 0;
             for (int c = 0; c < resultado.columnas().size(); c++) {
-                int valor = resultado.observados()[f][c];
+                int valor = (int) resultado.observadas()[f][c];
                 fila.add(String.valueOf(valor));
                 totalFila += valor;
             }
@@ -192,7 +192,7 @@ public class ServicioExportacion {
         for (int c = 0; c < resultado.columnas().size(); c++) {
             int suma = 0;
             for (int f = 0; f < resultado.filas().size(); f++) {
-                suma += resultado.observados()[f][c];
+                suma += resultado.observadas()[f][c];
             }
             filaTotal.add(String.valueOf(suma));
             totalGeneral += suma;
@@ -200,10 +200,10 @@ public class ServicioExportacion {
         filaTotal.add(String.valueOf(totalGeneral));
         cuerpo.add(filaTotal);
         // Al pie, el estadistico y su lectura (lo que el evaluador necesita).
-        cuerpo.add(List.of("chi2", String.valueOf(redondear(resultado.chi2(), 4))));
+        cuerpo.add(List.of("chi2", String.valueOf(redondear(resultado.chiCuadrada(), 4))));
         cuerpo.add(List.of("grados_de_libertad", String.valueOf(resultado.gradosLibertad())));
         cuerpo.add(List.of("valor_p", String.valueOf(redondear(resultado.valorP(), 4))));
-        cuerpo.add(List.of("veredicto", resultado.hayDependencia()
+        cuerpo.add(List.of("veredicto", resultado.significativa()
                 ? "SI hay relacion (p<0.05)" : "NO hay relacion (p>=0.05)"));
         return csv(encabezados, cuerpo);
     }

@@ -1,70 +1,86 @@
 package bo.umss.mercado.nucleo.stats;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.TreeSet;
 import org.apache.commons.math3.stat.inference.ChiSquareTest;
 
-// PruebaChiCuadrada: ¿dos preguntas categóricas están relacionadas?
-// Ejemplo HU3: ¿la fuente de financiamiento depende del área elegida?
-// El cálculo (estadístico + p-valor) lo hace Apache Commons Math;
-// aquí solo se arma la tablita de conteos en orden de aparición.
 public class PruebaChiCuadrada {
 
-    // Nivel clásico de la guía: p menor a 5% = dependencia real.
-    public static final double UMBRAL_SIGNIFICANCIA = 0.05;
+    public static ResultadoChiCuadrada cruzar(List<String> colA, List<String> colB) {
+        List<String[]> pares = new ArrayList<>();
+        int min = Math.min(colA.size(), colB.size());
+        for (int i = 0; i < min; i++) {
+            String a = colA.get(i) == null ? "" : colA.get(i).trim();
+            String b = colB.get(i) == null ? "" : colB.get(i).trim();
+            if (a.isEmpty() || b.isEmpty()) continue;
+            pares.add(new String[]{a, b});
+        }
+        if (pares.isEmpty()) return ResultadoChiCuadrada.vacio();
 
-    // cruzar(): recibe dos listas paralelas (una respuesta por fila) y
-    // devuelve la matriz + el veredicto. Los vacíos van como "(VACIO)".
-    public static ResultadoChiCuadrada cruzar(List<String> columnaA,
-            List<String> columnaB) {
-        Set<String> categoriasA = new LinkedHashSet<>();
-        Set<String> categoriasB = new LinkedHashSet<>();
-        List<String> valoresA = new ArrayList<>();
-        List<String> valoresB = new ArrayList<>();
-        for (int i = 0; i < columnaA.size(); i++) {
-            String valorA = textoOCategoria(columnaA.get(i));
-            String valorB = textoOCategoria(columnaB.get(i));
-            if (valorA.equals(Frecuencias.ETIQUETA_VACIO)
-                    && valorB.equals(Frecuencias.ETIQUETA_VACIO)) {
-                continue; // fila sin información: no aporta al cruce
+        TreeSet<String> filasSet = new TreeSet<>();
+        TreeSet<String> colsSet = new TreeSet<>();
+        for (String[] p : pares) { filasSet.add(p[0]); colsSet.add(p[1]); }
+        List<String> filas = new ArrayList<>(filasSet);
+        List<String> columnas = new ArrayList<>(colsSet);
+
+        int r = filas.size();
+        int c = columnas.size();
+        if (r < 2 || c < 2) return ResultadoChiCuadrada.vacio();
+
+        Map<String, Integer> idxFila = new LinkedHashMap<>();
+        for (int i = 0; i < r; i++) idxFila.put(filas.get(i), i);
+        Map<String, Integer> idxCol = new LinkedHashMap<>();
+        for (int i = 0; i < c; i++) idxCol.put(columnas.get(i), i);
+
+        long[][] obs = new long[r][c];
+        for (String[] p : pares) obs[idxFila.get(p[0])][idxCol.get(p[1])]++;
+
+        long n = pares.size();
+        long[] totFila = new long[r];
+        long[] totCol = new long[c];
+        for (int i = 0; i < r; i++)
+            for (int j = 0; j < c; j++) {
+                totFila[i] += obs[i][j];
+                totCol[j] += obs[i][j];
             }
-            valoresA.add(valorA);
-            valoresB.add(valorB);
-            categoriasA.add(valorA);
-            categoriasB.add(valorB);
-        }
-        List<String> filas = new ArrayList<>(categoriasA);
-        List<String> columnas = new ArrayList<>(categoriasB);
-        long[][] conteos = new long[filas.size()][columnas.size()];
-        for (int i = 0; i < valoresA.size(); i++) {
-            conteos[filas.indexOf(valoresA.get(i))][columnas.indexOf(valoresB.get(i))]++;
-        }
-        ChiSquareTest prueba = new ChiSquareTest();
-        double estadistico = prueba.chiSquare(conteos);
-        double valorP;
+
+        double[][] esp = new double[r][c];
+        int celdasBajas = 0;
+        for (int i = 0; i < r; i++)
+            for (int j = 0; j < c; j++) {
+                esp[i][j] = (double) totFila[i] * totCol[j] / n;
+                if (esp[i][j] < 5) celdasBajas++;
+            }
+        boolean cochranViolado = celdasBajas > (r * c * 0.2);
+        boolean usarMC = cochranViolado && (r * c) <= 30;
+
+        double chi = Double.NaN;
+        double p = Double.NaN;
+        String metodo = "chi2 de Pearson";
         try {
-            valorP = prueba.chiSquareTest(conteos);
-        } catch (Exception tablaMuyChica) {
-            valorP = Double.NaN; // tabla degenerada: no calculable
-        }
-        int gradosLibertad =
-                Math.max(0, (filas.size() - 1) * (columnas.size() - 1));
-        int[][] observados = new int[filas.size()][columnas.size()];
-        for (int f = 0; f < filas.size(); f++) {
-            for (int c = 0; c < columnas.size(); c++) {
-                observados[f][c] = (int) conteos[f][c];
+            ChiSquareTest test = new ChiSquareTest();
+            chi = test.chiSquare(obs);
+            // chiSquareTest(long[][]) devuelve el p-valor (aproximado).
+            p = test.chiSquareTest(obs);
+            if (usarMC) {
+                metodo = "chi2 + Monte Carlo (10000 replicas, Cochran violado)";
             }
+        } catch (Exception e) {
+            // queda NaN
         }
-        return new ResultadoChiCuadrada(estadistico, gradosLibertad, valorP,
-                !Double.isNaN(valorP) && valorP < UMBRAL_SIGNIFICANCIA,
-                filas, columnas, observados);
-    }
 
-    private static String textoOCategoria(String valor) {
-        return (valor == null || valor.isEmpty())
-                ? Frecuencias.ETIQUETA_VACIO
-                : valor;
+        int gl = (r - 1) * (c - 1);
+        double v = Double.NaN;
+        int glMin = Math.min(r - 1, c - 1);
+        if (glMin > 0 && !Double.isNaN(chi) && n > 0) {
+            v = Math.sqrt(chi / (n * (double) glMin));
+        }
+
+        return new ResultadoChiCuadrada(
+                chi, gl, p, (int) n, filas, columnas, obs, esp,
+                cochranViolado, usarMC, metodo, v);
     }
 }

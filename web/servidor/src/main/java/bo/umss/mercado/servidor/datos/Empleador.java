@@ -7,15 +7,12 @@ import jakarta.persistence.Id;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-// Empleador: UNA fila = UNA empresa encuestada. Espejo de empleadores.csv
-// (las 24 columnas: datos + empleabilidad + 10 Likert, §1.2).
-// Hibernate crea sola la tabla "empleador".
 @Entity
 public class Empleador {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id; // número interno de la base
+    private Long id;
 
     private String idEmpleador = "";
     private String correo = "";
@@ -31,6 +28,8 @@ public class Empleador {
     private String areasConocimientoEmergentes = "";
     private String herramientasTecnologicas = "";
     private String habilidadesCompetenciasRequeridas = "";
+
+    // 18 items Likert
     private String likertConfianzaFormadora = "";
     private String likertConsistenciaTitulo = "";
     private String likertConsultaRegular = "";
@@ -41,9 +40,26 @@ public class Empleador {
     private String likertCompetenciasLaborales = "";
     private String likertValoresActitudes = "";
     private String likertParticipacionProcesos = "";
+    private String likertVinculosOrganizaciones = "";
+    private String likertParticipacionVinculacion = "";
+    private String likertDifusionOportunidades = "";
+    private String likertVinculacionProfesionales = "";
+    private String likertConsultadoDesempeno = "";
+    private String likertConsultadoPertinencia = "";
+    private String likertRecurreUmss = "";
+    private String likertConsultadoAutoevaluacion = "";
 
+    // Derivadas Ch.4
+    private String tamanoAgrupado = "";
+    private String rubroAgrupado = "";
+    private String demandaIa = "";
+    private String tendenciasCategorias = "";
+    private String hardSkillsCategorias = "";
+    private String softSkillsCategorias = "";
+
+    // Getters y setters
     public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public void setId(Long v) { this.id = v; }
     public String getIdEmpleador() { return idEmpleador; }
     public void setIdEmpleador(String v) { this.idEmpleador = v; }
     public String getCorreo() { return correo; }
@@ -72,6 +88,7 @@ public class Empleador {
     public void setHerramientasTecnologicas(String v) { this.herramientasTecnologicas = v; }
     public String getHabilidadesCompetenciasRequeridas() { return habilidadesCompetenciasRequeridas; }
     public void setHabilidadesCompetenciasRequeridas(String v) { this.habilidadesCompetenciasRequeridas = v; }
+
     public String getLikertConfianzaFormadora() { return likertConfianzaFormadora; }
     public void setLikertConfianzaFormadora(String v) { this.likertConfianzaFormadora = v; }
     public String getLikertConsistenciaTitulo() { return likertConsistenciaTitulo; }
@@ -92,86 +109,125 @@ public class Empleador {
     public void setLikertValoresActitudes(String v) { this.likertValoresActitudes = v; }
     public String getLikertParticipacionProcesos() { return likertParticipacionProcesos; }
     public void setLikertParticipacionProcesos(String v) { this.likertParticipacionProcesos = v; }
+    public String getLikertVinculosOrganizaciones() { return likertVinculosOrganizaciones; }
+    public void setLikertVinculosOrganizaciones(String v) { this.likertVinculosOrganizaciones = v; }
+    public String getLikertParticipacionVinculacion() { return likertParticipacionVinculacion; }
+    public void setLikertParticipacionVinculacion(String v) { this.likertParticipacionVinculacion = v; }
+    public String getLikertDifusionOportunidades() { return likertDifusionOportunidades; }
+    public void setLikertDifusionOportunidades(String v) { this.likertDifusionOportunidades = v; }
+    public String getLikertVinculacionProfesionales() { return likertVinculacionProfesionales; }
+    public void setLikertVinculacionProfesionales(String v) { this.likertVinculacionProfesionales = v; }
+    public String getLikertConsultadoDesempeno() { return likertConsultadoDesempeno; }
+    public void setLikertConsultadoDesempeno(String v) { this.likertConsultadoDesempeno = v; }
+    public String getLikertConsultadoPertinencia() { return likertConsultadoPertinencia; }
+    public void setLikertConsultadoPertinencia(String v) { this.likertConsultadoPertinencia = v; }
+    public String getLikertRecurreUmss() { return likertRecurreUmss; }
+    public void setLikertRecurreUmss(String v) { this.likertRecurreUmss = v; }
+    public String getLikertConsultadoAutoevaluacion() { return likertConsultadoAutoevaluacion; }
+    public void setLikertConsultadoAutoevaluacion(String v) { this.likertConsultadoAutoevaluacion = v; }
 
-    // comoMapa(): claves idénticas al CSV para reusar el núcleo.
+    public String getTamanoAgrupado() { return tamanoAgrupado; }
+    public void setTamanoAgrupado(String v) { this.tamanoAgrupado = v; }
+    public String getRubroAgrupado() { return rubroAgrupado; }
+    public void setRubroAgrupado(String v) { this.rubroAgrupado = v; }
+    public String getDemandaIa() { return demandaIa; }
+    public void setDemandaIa(String v) { this.demandaIa = v; }
+    public String getTendenciasCategorias() { return tendenciasCategorias; }
+    public void setTendenciasCategorias(String v) { this.tendenciasCategorias = v; }
+    public String getHardSkillsCategorias() { return hardSkillsCategorias; }
+    public void setHardSkillsCategorias(String v) { this.hardSkillsCategorias = v; }
+    public String getSoftSkillsCategorias() { return softSkillsCategorias; }
+    public void setSoftSkillsCategorias(String v) { this.softSkillsCategorias = v; }
+
     public Map<String, String> comoMapa() {
-        Map<String, String> fila = new LinkedHashMap<>();
-        fila.put("id_empleador", idEmpleador);
-        fila.put("correo", correo);
-        fila.put("nombre_empresa", nombreEmpresa);
-        fila.put("tipo_organizacion", tipoOrganizacion);
-        fila.put("tamano_organizacion", tamanoOrganizacion);
-        fila.put("sector_rubro", sectorRubro);
-        fila.put("contrato_ultimos_5_anios", contratoUltimos5Anios);
-        fila.put("posibilidad_futura_contratacion", posibilidadFuturaContratacion);
-        fila.put("nivel_formacion_demanda", nivelFormacionDemanda);
-        fila.put("medio_convocatoria", medioConvocatoria);
-        fila.put("cargos_desempenados", cargosDesempenados);
-        fila.put("areas_conocimiento_emergentes", areasConocimientoEmergentes);
-        fila.put("herramientas_tecnologicas", herramientasTecnologicas);
-        fila.put("habilidades_competencias_requeridas",
-                habilidadesCompetenciasRequeridas);
-        fila.put("likert_confianza_formadora", likertConfianzaFormadora);
-        fila.put("likert_consistencia_titulo", likertConsistenciaTitulo);
-        fila.put("likert_consulta_regular", likertConsultaRegular);
-        fila.put("likert_conoce_perfil", likertConocePerfil);
-        fila.put("likert_coherencia_perfil", likertCoherenciaPerfil);
-        fila.put("likert_formacion_desempeno", likertFormacionDesempeno);
-        fila.put("likert_considera_opinion", likertConsideraOpinion);
-        fila.put("likert_competencias_laborales", likertCompetenciasLaborales);
-        fila.put("likert_valores_actitudes", likertValoresActitudes);
-        fila.put("likert_participacion_procesos", likertParticipacionProcesos);
-        return fila;
+        Map<String, String> f = new LinkedHashMap<>();
+        f.put("id_empleador", idEmpleador);
+        f.put("correo", correo);
+        f.put("nombre_empresa", nombreEmpresa);
+        f.put("tipo_organizacion", tipoOrganizacion);
+        f.put("tamano_organizacion", tamanoOrganizacion);
+        f.put("sector_rubro", sectorRubro);
+        f.put("contrato_ultimos_5_anios", contratoUltimos5Anios);
+        f.put("posibilidad_futura_contratacion", posibilidadFuturaContratacion);
+        f.put("nivel_formacion_demanda", nivelFormacionDemanda);
+        f.put("medio_convocatoria", medioConvocatoria);
+        f.put("cargos_desempenados", cargosDesempenados);
+        f.put("areas_conocimiento_emergentes", areasConocimientoEmergentes);
+        f.put("herramientas_tecnologicas", herramientasTecnologicas);
+        f.put("habilidades_competencias_requeridas", habilidadesCompetenciasRequeridas);
+        f.put("likert_confianza_formadora", likertConfianzaFormadora);
+        f.put("likert_consistencia_titulo", likertConsistenciaTitulo);
+        f.put("likert_consulta_regular", likertConsultaRegular);
+        f.put("likert_conoce_perfil", likertConocePerfil);
+        f.put("likert_coherencia_perfil", likertCoherenciaPerfil);
+        f.put("likert_formacion_desempeno", likertFormacionDesempeno);
+        f.put("likert_considera_opinion", likertConsideraOpinion);
+        f.put("likert_competencias_laborales", likertCompetenciasLaborales);
+        f.put("likert_valores_actitudes", likertValoresActitudes);
+        f.put("likert_participacion_procesos", likertParticipacionProcesos);
+        f.put("likert_vinculos_organizaciones", likertVinculosOrganizaciones);
+        f.put("likert_participacion_vinculacion", likertParticipacionVinculacion);
+        f.put("likert_difusion_oportunidades", likertDifusionOportunidades);
+        f.put("likert_vinculacion_profesionales", likertVinculacionProfesionales);
+        f.put("likert_consultado_desempeno", likertConsultadoDesempeno);
+        f.put("likert_consultado_pertinencia", likertConsultadoPertinencia);
+        f.put("likert_recurre_umss", likertRecurreUmss);
+        f.put("likert_consultado_autoevaluacion", likertConsultadoAutoevaluacion);
+        f.put("tamano_agrupado", tamanoAgrupado);
+        f.put("rubro_agrupado", rubroAgrupado);
+        f.put("demanda_ia", demandaIa);
+        f.put("tendencias_categorias", tendenciasCategorias);
+        f.put("hard_skills_categorias", hardSkillsCategorias);
+        f.put("soft_skills_categorias", softSkillsCategorias);
+        return f;
     }
 
-    // desdeMapa(): construye un Empleador desde una fila de CSV ya limpia.
     public static Empleador desdeMapa(Map<String, String> fila) {
-        Empleador empleador = new Empleador();
-        for (var entrada : fila.entrySet()) {
-            String valor = entrada.getValue() == null ? "" : entrada.getValue();
-            switch (entrada.getKey()) {
-                case "id_empleador" -> empleador.setIdEmpleador(valor);
-                case "correo" -> empleador.setCorreo(valor);
-                case "nombre_empresa" -> empleador.setNombreEmpresa(valor);
-                case "tipo_organizacion" -> empleador.setTipoOrganizacion(valor);
-                case "tamano_organizacion" -> empleador.setTamanoOrganizacion(valor);
-                case "sector_rubro" -> empleador.setSectorRubro(valor);
-                case "contrato_ultimos_5_anios" ->
-                        empleador.setContratoUltimos5Anios(valor);
-                case "posibilidad_futura_contratacion" ->
-                        empleador.setPosibilidadFuturaContratacion(valor);
-                case "nivel_formacion_demanda" ->
-                        empleador.setNivelFormacionDemanda(valor);
-                case "medio_convocatoria" -> empleador.setMedioConvocatoria(valor);
-                case "cargos_desempenados" -> empleador.setCargosDesempenados(valor);
-                case "areas_conocimiento_emergentes" ->
-                        empleador.setAreasConocimientoEmergentes(valor);
-                case "herramientas_tecnologicas" ->
-                        empleador.setHerramientasTecnologicas(valor);
-                case "habilidades_competencias_requeridas" ->
-                        empleador.setHabilidadesCompetenciasRequeridas(valor);
-                case "likert_confianza_formadora" ->
-                        empleador.setLikertConfianzaFormadora(valor);
-                case "likert_consistencia_titulo" ->
-                        empleador.setLikertConsistenciaTitulo(valor);
-                case "likert_consulta_regular" ->
-                        empleador.setLikertConsultaRegular(valor);
-                case "likert_conoce_perfil" -> empleador.setLikertConocePerfil(valor);
-                case "likert_coherencia_perfil" ->
-                        empleador.setLikertCoherenciaPerfil(valor);
-                case "likert_formacion_desempeno" ->
-                        empleador.setLikertFormacionDesempeno(valor);
-                case "likert_considera_opinion" ->
-                        empleador.setLikertConsideraOpinion(valor);
-                case "likert_competencias_laborales" ->
-                        empleador.setLikertCompetenciasLaborales(valor);
-                case "likert_valores_actitudes" ->
-                        empleador.setLikertValoresActitudes(valor);
-                case "likert_participacion_procesos" ->
-                        empleador.setLikertParticipacionProcesos(valor);
-                default -> { /* columna extra: se ignora */ }
+        Empleador e = new Empleador();
+        for (var en : fila.entrySet()) {
+            String v = en.getValue() == null ? "" : en.getValue();
+            switch (en.getKey()) {
+                case "id_empleador" -> e.setIdEmpleador(v);
+                case "correo" -> e.setCorreo(v);
+                case "nombre_empresa" -> e.setNombreEmpresa(v);
+                case "tipo_organizacion" -> e.setTipoOrganizacion(v);
+                case "tamano_organizacion" -> e.setTamanoOrganizacion(v);
+                case "sector_rubro" -> e.setSectorRubro(v);
+                case "contrato_ultimos_5_anios" -> e.setContratoUltimos5Anios(v);
+                case "posibilidad_futura_contratacion" -> e.setPosibilidadFuturaContratacion(v);
+                case "nivel_formacion_demanda" -> e.setNivelFormacionDemanda(v);
+                case "medio_convocatoria" -> e.setMedioConvocatoria(v);
+                case "cargos_desempenados" -> e.setCargosDesempenados(v);
+                case "areas_conocimiento_emergentes" -> e.setAreasConocimientoEmergentes(v);
+                case "herramientas_tecnologicas" -> e.setHerramientasTecnologicas(v);
+                case "habilidades_competencias_requeridas" -> e.setHabilidadesCompetenciasRequeridas(v);
+                case "likert_confianza_formadora" -> e.setLikertConfianzaFormadora(v);
+                case "likert_consistencia_titulo" -> e.setLikertConsistenciaTitulo(v);
+                case "likert_consulta_regular" -> e.setLikertConsultaRegular(v);
+                case "likert_conoce_perfil" -> e.setLikertConocePerfil(v);
+                case "likert_coherencia_perfil" -> e.setLikertCoherenciaPerfil(v);
+                case "likert_formacion_desempeno" -> e.setLikertFormacionDesempeno(v);
+                case "likert_considera_opinion" -> e.setLikertConsideraOpinion(v);
+                case "likert_competencias_laborales" -> e.setLikertCompetenciasLaborales(v);
+                case "likert_valores_actitudes" -> e.setLikertValoresActitudes(v);
+                case "likert_participacion_procesos" -> e.setLikertParticipacionProcesos(v);
+                case "likert_vinculos_organizaciones" -> e.setLikertVinculosOrganizaciones(v);
+                case "likert_participacion_vinculacion" -> e.setLikertParticipacionVinculacion(v);
+                case "likert_difusion_oportunidades" -> e.setLikertDifusionOportunidades(v);
+                case "likert_vinculacion_profesionales" -> e.setLikertVinculacionProfesionales(v);
+                case "likert_consultado_desempeno" -> e.setLikertConsultadoDesempeno(v);
+                case "likert_consultado_pertinencia" -> e.setLikertConsultadoPertinencia(v);
+                case "likert_recurre_umss" -> e.setLikertRecurreUmss(v);
+                case "likert_consultado_autoevaluacion" -> e.setLikertConsultadoAutoevaluacion(v);
+                case "tamano_agrupado" -> e.setTamanoAgrupado(v);
+                case "rubro_agrupado" -> e.setRubroAgrupado(v);
+                case "demanda_ia" -> e.setDemandaIa(v);
+                case "tendencias_categorias" -> e.setTendenciasCategorias(v);
+                case "hard_skills_categorias" -> e.setHardSkillsCategorias(v);
+                case "soft_skills_categorias" -> e.setSoftSkillsCategorias(v);
+                default -> { }
             }
         }
-        return empleador;
+        return e;
     }
 }

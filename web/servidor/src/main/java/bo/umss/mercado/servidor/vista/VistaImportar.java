@@ -7,6 +7,7 @@ import bo.umss.mercado.servidor.datos.Titulado;
 import bo.umss.mercado.servidor.servicio.ServicioCarga;
 import bo.umss.mercado.servidor.servicio.ServicioImportacionCruda;
 import bo.umss.mercado.servidor.servicio.ServicioImportacionCruda.Accion;
+import bo.umss.mercado.servidor.servicio.ServicioImportacionCruda.Resultado;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -21,15 +22,6 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import java.io.InputStream;
 
-/**
- * VistaImportar: sube encuestas crudas (CSV exportado directo de MS Forms)
- * al servidor. Antes de procesar, pregunta con un modal: DUPLICAR (anade
- * sin tocar lo que ya hay) o REEMPLAZAR (borra todo y carga lo nuevo).
- *
- * El CSV crudo se convierte automaticamente al formato normalizado de la
- * app (limpieza de acentos, si/no, situacion laboral "NO trabajo", etc.)
- * antes de guardarse en la base.
- */
 @Route(value = "importar", layout = MainLayout.class)
 @PageTitle("Importar | Mercado UMSS")
 public class VistaImportar extends VerticalLayout {
@@ -53,14 +45,12 @@ public class VistaImportar extends VerticalLayout {
                     mostrarModal(contenido, importacionCruda, false);
                 }));
 
-        // Nota sobre el formato crudo.
         add(new Paragraph("Formato crudo = el CSV que exporta MS Forms "
                 + "(57 columnas para titulados, 32 para empleadores). "
                 + "Formato normalizado = el CSV de 35/24 columnas que usa la app. "
                 + "Si subes el normalizado, se trata como duplicar."));
     }
 
-    // mostrarModal(): pregunta DUPLICAR o REEMPLAZAR antes de procesar.
     private void mostrarModal(InputStream contenido, ServicioImportacionCruda imp,
             boolean esTitulado) {
         Dialog modal = new Dialog();
@@ -101,27 +91,22 @@ public class VistaImportar extends VerticalLayout {
         modal.open();
     }
 
-    // procesar(): ejecuta la importacion y muestra el resultado.
     private void procesar(InputStream contenido, ServicioImportacionCruda imp,
             boolean esTitulado, Accion accion) {
         try {
-            int nuevos;
-            if (esTitulado) {
-                nuevos = imp.importarTitulados(contenido, accion);
-            } else {
-                nuevos = imp.importarEmpleadores(contenido, accion);
-            }
-            String mensaje = nuevos + " registros nuevos guardados ("
-                    + accion + ").";
-            Notification.show(mensaje, 5000, Notification.Position.MIDDLE);
+            Resultado r = esTitulado
+                    ? imp.importarTitulados(contenido, accion)
+                    : imp.importarEmpleadores(contenido, accion);
+            String mensaje = r.leidas() + " filas leídas: "
+                    + r.nuevos() + " guardadas, " + r.omitidos()
+                    + " omitidas por id repetido (" + accion + ").";
+            Notification.show(mensaje, 8000, Notification.Position.MIDDLE);
         } catch (Exception error) {
             Notification.show("No se pudo leer: " + error.getMessage(),
                     8000, Notification.Position.MIDDLE);
         }
     }
 
-    // subidaPara(): boton de subida que entrega el contenido al servicio.
-    // MemoryBuffer = el archivo vive en memoria, no toca el disco.
     private Upload subidaPara(String titulo, String[] extensiones,
             java.util.function.Consumer<InputStream> alRecibir) {
         MemoryBuffer memoria = new MemoryBuffer();

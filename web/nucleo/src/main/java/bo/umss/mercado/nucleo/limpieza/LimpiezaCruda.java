@@ -1,26 +1,17 @@
 package bo.umss.mercado.nucleo.limpieza;
 
+import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-/**
- * LimpiezaCruda: convierte un CSV EXPORTADO DIRECTAMENTE de Microsoft Forms
- * (los "CSV crudos" con 57/32 columnas y encabezados largos) al formato
- * normalizado que usa la aplicacion (35/24 columnas con codigos estables).
- *
- * Por que por indices y no por nombre de columna: los encabezados del Forms
- * tienen caracteres rotos (�) y espacios al inicio/final; los indices
- * verificados del Excel son estables y no dependen de la codificacion.
- *
- * Detecta el tipo de encuesta por el numero de columnas:
- *   - >= 50 columnas -> titulados (encuesta de 36 preguntas)
- *   - ~32 columnas  -> empleadores (encuesta de 22 preguntas)
- */
 public class LimpiezaCruda {
 
-    // Indices verificados del CSV crudo de TITULADOS (0-based).
+    // --- TITULADOS (crudo de 167 columnas: 57 reales + 110 Puntos/Comentarios) ---
     private static final int T_ID = 0;
     private static final int T_EDAD = 8;
     private static final int T_GENERO = 9;
@@ -57,7 +48,7 @@ public class LimpiezaCruda {
     private static final int T_TELEFONO = 55;
     private static final int T_LINKEDIN = 56;
 
-    // Indices verificados del CSV crudo de EMPLEADORES (0-based).
+    // --- EMPLEADORES (crudo de 32 columnas, sin Puntos/Comentarios) ---
     private static final int E_CORREO = 1;
     private static final int E_NOMBRE = 2;
     private static final int E_TIPO = 3;
@@ -71,28 +62,37 @@ public class LimpiezaCruda {
     private static final int E_AREAS = 11;
     private static final int E_HERR = 12;
     private static final int E_HAB = 13;
-    private static final int E_LIKERT_INICIO = 14; // 10 items hasta 23
+    private static final int E_LIKERT_INICIO = 14; // 18 items (14..31)
 
-    // ----------------------------------------------------------------
-    // Publicos: detectan el tipo y convierten.
-    // ----------------------------------------------------------------
+    // ================================================================
+    // Detección
+    // ================================================================
     public static boolean esTitulados(List<Map<String, String>> crudo) {
         if (crudo.isEmpty()) return false;
+        // Crudo de Forms (167 cols) o normalizado (57 cols filtradas).
         return crudo.get(0).size() >= 50;
     }
 
     public static boolean esEmpleadores(List<Map<String, String>> crudo) {
         if (crudo.isEmpty()) return false;
         int cols = crudo.get(0).size();
-        return cols >= 28 && cols <= 35;
+        return cols >= 28 && cols <= 40;
     }
 
+    // ================================================================
+    // Conversión TITULADOS
+    // ================================================================
     public static List<Map<String, String>> convertirTitulados(List<Map<String, String>> crudo) {
         List<Map<String, String>> salida = new ArrayList<>();
+        Set<String> vistos = new HashSet<>();
         for (Map<String, String> fila : crudo) {
             List<String> c = filaALista(fila);
             Map<String, String> m = new LinkedHashMap<>();
-            m.put("id_titulado", "T" + String.format("%03d", salida.size() + 1));
+            String id = idTitulado(c, salida.size() + 1);
+            if (!vistos.add(id)) {
+                throw new IllegalArgumentException("Id de titulado repetido en el CSV: " + id);
+            }
+            m.put("id_titulado", id);
             m.put("edad", edadANumero(obtener(c, T_EDAD)));
             m.put("genero", normalizarTexto(obtener(c, T_GENERO)));
             m.put("realizo_formacion_complementaria", siNo(obtener(c, T_FORM_COMP)));
@@ -127,19 +127,26 @@ public class LimpiezaCruda {
             m.put("email_contacto", textoLibre(obtener(c, T_EMAIL)));
             m.put("telefono_contacto", textoLibre(obtener(c, T_TELEFONO)));
             m.put("linkedin_contacto", textoLibre(obtener(c, T_LINKEDIN)));
-            // Limpieza final (nulos, numeros invalidos, SI/NO unificado)
             LimpiezaDatos.limpiarFila(m);
             salida.add(m);
         }
         return salida;
     }
 
+    // ================================================================
+    // Conversión EMPLEADORES (18 Likert + 6 derivadas)
+    // ================================================================
     public static List<Map<String, String>> convertirEmpleadores(List<Map<String, String>> crudo) {
         List<Map<String, String>> salida = new ArrayList<>();
+        Set<String> vistos = new HashSet<>();
         for (Map<String, String> fila : crudo) {
             List<String> c = filaALista(fila);
             Map<String, String> m = new LinkedHashMap<>();
-            m.put("id_empleador", "E" + String.format("%03d", salida.size() + 1));
+            String id = idEmpleador(c);
+            if (!vistos.add(id)) {
+                throw new IllegalArgumentException("Id de empleador repetido en el CSV: " + id);
+            }
+            m.put("id_empleador", id);
             m.put("correo", textoLibre(obtener(c, E_CORREO)));
             m.put("nombre_empresa", normalizarTexto(obtener(c, E_NOMBRE)));
             m.put("tipo_organizacion", tipoOrg(obtener(c, E_TIPO)));
@@ -153,23 +160,59 @@ public class LimpiezaCruda {
             m.put("areas_conocimiento_emergentes", textoLibre(obtener(c, E_AREAS)));
             m.put("herramientas_tecnologicas", textoLibre(obtener(c, E_HERR)));
             m.put("habilidades_competencias_requeridas", textoLibre(obtener(c, E_HAB)));
-            for (int i = 0; i < 10; i++) {
-                String item = LIKERT_ITEMS[i];
-                m.put(item, likert4(obtener(c, E_LIKERT_INICIO + i)));
+
+            // 18 ítems Likert (escala 1-3 real, "no sabe" excluido)
+            for (int i = 0; i < LIKERT_ITEMS.length; i++) {
+                m.put(LIKERT_ITEMS[i], likert3(obtener(c, E_LIKERT_INICIO + i)));
             }
+
+            // ---- Derivadas (Ch.4) ----
+            m.put("tamano_agrupado", tamanoAgrupado(m.get("tamano_organizacion")));
+            m.put("rubro_agrupado", rubroAgrupado(m.get("sector_rubro")));
+            m.put("demanda_ia", demandaIA(m.get("areas_conocimiento_emergentes")));
+            m.put("tendencias_categorias", categorizar(m.get("areas_conocimiento_emergentes"), REGLAS_TENDENCIAS));
+            m.put("hard_skills_categorias", categorizar(m.get("herramientas_tecnologicas"), REGLAS_HARD));
+            m.put("soft_skills_categorias", categorizar(m.get("habilidades_competencias_requeridas"), REGLAS_SOFT));
+
             LimpiezaDatos.limpiarFila(m);
             salida.add(m);
         }
         return salida;
     }
 
-    // ----------------------------------------------------------------
-    // Helpers: lectura segura por indice.
-    // ----------------------------------------------------------------
+    // ================================================================
+    // IDs estables
+    // ================================================================
+    private static String idTitulado(List<String> c, int posicionDePlanB) {
+        String id = obtener(c, T_ID).replaceAll("[^0-9]", "");
+        if (!id.isEmpty() && id.length() <= 9) {
+            return "T" + String.format("%03d", Integer.parseInt(id));
+        }
+        return "T" + String.format("%03d", posicionDePlanB);
+    }
+
+    private static String idEmpleador(List<String> c) {
+        String base = obtener(c, 0) + "|" + obtener(c, E_CORREO) + "|" + obtener(c, E_NOMBRE);
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-1");
+            byte[] h = md.digest(base.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder("E");
+            for (int i = 0; i < 6; i++) sb.append(String.format("%02X", h[i]));
+            return sb.toString();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    // ================================================================
+    // Filtro clave: ignora Puntos: y Comentarios: (110 columnas de Forms)
+    // ================================================================
     private static List<String> filaALista(Map<String, String> fila) {
         List<String> out = new ArrayList<>();
-        for (String v : fila.values()) {
-            out.add(v == null ? "" : v);
+        for (Map.Entry<String, String> e : fila.entrySet()) {
+            String k = e.getKey() == null ? "" : e.getKey().trim();
+            if (k.startsWith("Puntos:") || k.startsWith("Comentarios:")) continue;
+            out.add(e.getValue() == null ? "" : e.getValue());
         }
         return out;
     }
@@ -200,18 +243,17 @@ public class LimpiezaCruda {
 
     private static String multi(String v) {
         if (v == null || v.trim().isEmpty()) return "";
-        String[] partes = v.split(";");
         List<String> out = new ArrayList<>();
-        for (String p : partes) {
+        for (String p : v.split(";")) {
             p = p.trim();
             if (!p.isEmpty()) out.add(p);
         }
         return String.join("|", out);
     }
 
-    // ----------------------------------------------------------------
-    // Transformaciones de TITULADOS.
-    // ----------------------------------------------------------------
+    // ================================================================
+    // Titulados: transformaciones
+    // ================================================================
     private static String edadANumero(String v) {
         String s = normalizarTexto(v);
         if (s.isEmpty()) return "";
@@ -297,13 +339,29 @@ public class LimpiezaCruda {
         return "";
     }
 
+    // Escala 4 puntos (titulados). Corrige "Totalmente en desacuerdo".
     private static String likert4(String v) {
         String s = normalizarTexto(v);
         if (s.contains("TOTALMENTE DE ACUERDO")) return "TOTALMENTE_ACUERDO";
-        if (s.contains("TOTALMENTE DESACUERDO")) return "TOTALMENTE_DESACUERDO";
-        if (s.contains("TOTALMENTE DESACUERDO")) return "TOTALMENTE_DESACUERDO";
+        if (s.contains("TOTALMENTE EN DESACUERDO") || s.contains("TOTALMENTE DESACUERDO"))
+            return "TOTALMENTE_DESACUERDO";
+        if (s.contains("PARCIALMENTE DE ACUERDO")) return "PARCIALMENTE_ACUERDO";
         if (s.contains("DE ACUERDO")) return "ACUERDO";
         if (s.contains("DESACUERDO")) return "DESACUERDO";
+        return "";
+    }
+
+    // Escala 3 puntos (empleadores). Distingue "Parcialmente" y excluye "No sabe".
+    private static String likert3(String v) {
+        String s = normalizarTexto(v);
+        if (s.contains("NO SABE") || s.contains("NO_SABE")) return "";
+        if (s.contains("TOTALMENTE DE ACUERDO") || s.equals("TOTALMENTE DE ACUERDO"))
+            return "TOTALMENTE_ACUERDO";
+        if (s.contains("PARCIALMENTE DE ACUERDO") || s.contains("PARCIALMENTE ACUERDO")
+                || s.equals("PARCIALMENTE DE ACUERDO"))
+            return "PARCIALMENTE_ACUERDO";
+        if (s.contains("TOTALMENTE DESACUERDO") || s.contains("TOTALMENTE EN DESACUERDO"))
+            return "TOTALMENTE_DESACUERDO";
         return "";
     }
 
@@ -377,15 +435,19 @@ public class LimpiezaCruda {
         return "";
     }
 
-    // ----------------------------------------------------------------
-    // Transformaciones de EMPLEADORES.
-    // ----------------------------------------------------------------
-    private static final String[] LIKERT_ITEMS = {
+    // ================================================================
+    // Empleadores: transformaciones
+    // ================================================================
+    public static final String[] LIKERT_ITEMS = {
             "likert_confianza_formadora", "likert_consistencia_titulo",
             "likert_consulta_regular", "likert_conoce_perfil",
             "likert_coherencia_perfil", "likert_formacion_desempeno",
             "likert_considera_opinion", "likert_competencias_laborales",
-            "likert_valores_actitudes", "likert_participacion_procesos"};
+            "likert_valores_actitudes", "likert_participacion_procesos",
+            "likert_vinculos_organizaciones", "likert_participacion_vinculacion",
+            "likert_difusion_oportunidades", "likert_vinculacion_profesionales",
+            "likert_consultado_desempeno", "likert_consultado_pertinencia",
+            "likert_recurre_umss", "likert_consultado_autoevaluacion"};
 
     private static String tipoOrg(String v) {
         String s = normalizarTexto(v);
@@ -467,4 +529,92 @@ public class LimpiezaCruda {
         if (s.contains("OTRO")) partes.add("OTRO");
         return String.join("|", partes);
     }
+    // ---- Derivadas Ch.4 ----
+    private static String tamanoAgrupado(String tamano) {
+        if (tamano == null || tamano.isEmpty()) return "";
+        if (tamano.equals("MICRO") || tamano.equals("PEQUENA")) return "MICRO_PEQUENA";
+        if (tamano.equals("MEDIANA") || tamano.equals("GRANDE")) return "MEDIANA_GRANDE";
+        return "";
+    }
+
+    private static String rubroAgrupado(String sector) {
+        if (sector == null || sector.isEmpty()) return "";
+        if (sector.equals("DESARROLLO_SOFTWARE")) return "DESARROLLO_SOFTWARE";
+        return "OTROS";
+    }
+
+    private static String demandaIA(String texto) {
+        if (texto == null || texto.trim().isEmpty()) return "";
+        String n = texto.toLowerCase()
+                .replace("á", "a").replace("é", "e").replace("í", "i")
+                .replace("ó", "o").replace("ú", "u");
+        if (n.contains("inteligencia artificial")) return "SI";
+        if (n.contains("machine learning")) return "SI";
+        if (n.contains("deep learning")) return "SI";
+        if (n.contains("redes neuronales")) return "SI";
+        if (n.contains("large language model")) return "SI";
+        if (n.contains("agentes de ia") || n.contains("agentes ia")) return "SI";
+        if (n.matches(".*\\bia\\b.*")) return "SI"; // "ia" aislada
+        return "NO";
+    }
+
+    private static final Map<String, List<String>> REGLAS_TENDENCIAS = Map.of(
+            "IA", List.of("inteligencia artificial", "machine learning", "deep learning",
+                    "redes neuronales", "ia aplicada", "llm"),
+            "CIBERSEGURIDAD", List.of("ciberseguridad", "seguridad informatica", "ciber"),
+            "CLOUD", List.of("cloud", "nube", "aws", "azure", "gcp", "computacion en la nube"),
+            "CIENCIA_DATOS", List.of("ciencia de datos", "data science", "analisis de datos",
+                    "analitica", "big data"),
+            "IOT", List.of("iot", "internet de las cosas", "internet of things"),
+            "DEVOPS", List.of("devops", "ci/cd", "docker", "kubernetes"),
+            "MOVIL", List.of("aplicaciones moviles", "apps moviles", "mobile", "android", "ios"),
+            "AUTOMATIZACION", List.of("automatizacion", "rpa", "automatizar"),
+            "BLOCKCHAIN", List.of("blockchain", "web3", "solidity"),
+            "AR_VR", List.of("realidad virtual", "vr", "realidad aumentada"));
+
+    private static final Map<String, List<String>> REGLAS_HARD = Map.of(
+            "HERRAMIENTAS_IA", List.of("chatgpt", "copilot", "claude", "codex", "cursor",
+                    "qodo", "gemini", "openai", "antigravity", "agentes"),
+            "CLOUD", List.of("aws", "azure", "gcp", "google cloud", "supabase", "firebase", "vercel"),
+            "DEVOPS", List.of("docker", "kubernetes", "github actions", "gitlab ci", "terraform"),
+            "LENGUAJES", List.of("python", "java", "c#", "javascript", "typescript",
+                    "kotlin", "go", "rust", "php"),
+            "BASES_DATOS", List.of("sql", "postgresql", "mysql", "oracle", "mongodb", "postgres"),
+            "FRONTEND", List.of("react", "vue", "angular", "tailwind"),
+            "MOVIL", List.of("flutter", "react native", "android", "ios"),
+            "VERSIONAMIENTO", List.of("git", "github", "gitlab"),
+            "GESTION_PROYECTOS", List.of("jira", "trello", "clickup", "scrum"));
+
+    private static final Map<String, List<String>> REGLAS_SOFT = Map.of(
+            "TRABAJO_EQUIPO", List.of("trabajo en equipo", "colaboracion", "colaborar"),
+            "COMUNICACION", List.of("comunicacion", "oratoria", "expresion", "comunicacion efectiva"),
+            "RESOLUCION_PROBLEMAS", List.of("resolucion de problemas", "resolver problemas",
+                    "problem solving"),
+            "CRITERIO_IA", List.of("criterio", "auditar ia", "evaluar ia", "orquestar ia",
+                    "uso responsable ia", "agentes ia"),
+            "ADAPTABILIDAD", List.of("adaptacion", "adaptabilidad", "aprendizaje continuo",
+                    "flexibilidad", "aprender a aprender"),
+            "LIDERAZGO", List.of("liderazgo", "iniciativa", "proactividad"),
+            "PENSAMIENTO_CRITICO", List.of("pensamiento critico", "criterio tecnico", "analisis"),
+            "INGLES", List.of("ingles", "english"));
+
+    private static String categorizar(String texto, Map<String, List<String>> reglas) {
+        if (texto == null || texto.trim().isEmpty()) return "";
+        String n = texto.toLowerCase()
+                .replace("á", "a").replace("é", "e").replace("í", "i")
+                .replace("ó", "o").replace("ú", "u").replace("ñ", "n");
+        List<String> encontradas = new ArrayList<>();
+        for (var entrada : reglas.entrySet()) {
+            for (String kw : entrada.getValue()) {
+                if (n.contains(kw)) {
+                    encontradas.add(entrada.getKey());
+                    break;
+                }
+            }
+        }
+        return String.join("|", encontradas);
+    }
+
+    // ----------------------------------------------------------------
+    // Helpers para los campos de texto libre y multi-opcion.
 }

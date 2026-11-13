@@ -44,7 +44,7 @@ public class VistaCruces extends VerticalLayout {
         VerticalLayout seccion = new VerticalLayout();
         seccion.add(new H3(cruce.etiqueta()));
         seccion.add(mapaDeCalor(cruce));
-        seccion.add(new Paragraph("χ²=" + String.valueOf(cruce.resultado().chi2())
+        seccion.add(new Paragraph("χ²=" + String.valueOf(cruce.resultado().chiCuadrada())
                 + "   gl=" + cruce.resultado().gradosLibertad()
                 + "   p=" + String.valueOf(cruce.resultado().valorP())
                 + "  →  " + cruce.fraseSimple()));
@@ -53,7 +53,12 @@ public class VistaCruces extends VerticalLayout {
 
     // mapaDeCalor(): usa GraficoCanvas.mapaCalor() para dibujar la matriz.
     private Component mapaDeCalor(FichaCruce cruce) {
-        int[][] obs = cruce.resultado().observados();
+        long[][] obsLong = cruce.resultado().observadas();
+        int[][] obs = new int[obsLong.length][];
+        for (int f = 0; f < obsLong.length; f++) {
+            obs[f] = new int[obsLong[f].length];
+            for (int c = 0; c < obsLong[f].length; c++) obs[f][c] = (int) obsLong[f][c];
+        }
         String[] filas = cruce.resultado().filas()
                 .toArray(new String[0]);
         String[] cols = cruce.resultado().columnas()
