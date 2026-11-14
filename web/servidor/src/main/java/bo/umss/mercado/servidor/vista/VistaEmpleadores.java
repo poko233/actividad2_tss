@@ -10,11 +10,14 @@ import bo.umss.mercado.servidor.servicio.ServicioInterpretacion;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.accordion.Accordion;
 import com.vaadin.flow.component.accordion.AccordionPanel;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.HeaderRow;
 import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
@@ -23,6 +26,9 @@ import com.vaadin.flow.component.html.ListItem;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.html.UnorderedList;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.tabs.Tab;
@@ -129,6 +135,9 @@ public class VistaEmpleadores extends VerticalLayout {
                 this.interpretacion = interpretacion;
 
                 inyectarCss();
+                setPadding(true);
+                setSpacing(true);
+                getStyle().set("background", "#f8fafc").set("min-height", "100vh");
 
                 add(construirHeader());
 
@@ -136,6 +145,8 @@ public class VistaEmpleadores extends VerticalLayout {
                                 new Tab("Univariado"),
                                 new Tab("Bivariado"),
                                 new Tab("Multivariado"));
+                tabs.getStyle().set("margin-bottom", "16px");
+
                 VerticalLayout contenido = new VerticalLayout();
                 contenido.setPadding(false);
                 contenido.add(construirTabUnivariado());
@@ -175,18 +186,189 @@ public class VistaEmpleadores extends VerticalLayout {
                                 .replace(" ", "_");
         }
 
+        private Div construirHeader() {
+                Div header = new Div();
+                header.getStyle()
+                                .set("background", COLOR_PRINCIPAL)
+                                .set("padding", "28px 36px")
+                                .set("border-radius", "16px")
+                                .set("color", "white")
+                                .set("margin-bottom", "16px")
+                                .set("box-shadow", "0 6px 20px rgba(11,61,98,.2)")
+                                .set("position", "relative")
+                                .set("overflow", "hidden");
+
+                Div titulo = new Div();
+                titulo.setText("Empleadores encuestados (M = " + repositorio.count() + ")");
+                titulo.getStyle()
+                                .set("font-size", "26px")
+                                .set("font-weight", "700")
+                                .set("letter-spacing", "-0.3px")
+                                .set("margin-bottom", "4px")
+                                .set("position", "relative").set("z-index", "1");
+
+                Div sub = new Div();
+                sub.setText("Análisis descriptivo, inferencial y multivariable de las organizaciones");
+                sub.getStyle()
+                                .set("font-size", "13px")
+                                .set("opacity", "0.85")
+                                .set("margin-bottom", "16px")
+                                .set("position", "relative").set("z-index", "1");
+
+                HorizontalLayout botones = new HorizontalLayout();
+                botones.setSpacing(true);
+                botones.getStyle().set("gap", "10px").set("flex-wrap", "wrap")
+                                .set("position", "relative").set("z-index", "1");
+
+                Anchor btnExcel = new Anchor("/exportar/empleadores.xlsx", "");
+                btnExcel.getElement().setAttribute("download", true);
+                btnExcel.getStyle()
+                                .set("display", "inline-flex").set("align-items", "center").set("gap", "8px")
+                                .set("background", "rgba(255,255,255,0.15)").set("color", "white")
+                                .set("padding", "10px 18px").set("border-radius", "8px")
+                                .set("font-weight", "600").set("font-size", "13px")
+                                .set("text-decoration", "none").set("cursor", "pointer")
+                                .set("border", "1px solid rgba(255,255,255,0.3)")
+                                .set("transition", "all 0.3s ease");
+                btnExcel.getElement().executeJs(
+                                "this.innerHTML = $0",
+                                "<span style='display:inline-flex;align-items:center;gap:8px;'><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16' fill='#ffffff'><path d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/></svg><span>Exportar Excel</span></span>");
+                btnExcel.getElement().executeJs(
+                                "this.addEventListener('mouseenter', () => { this.style.background='rgba(255,255,255,0.25)'; this.style.transform='translateY(-2px)'; });"
+                                                + "this.addEventListener('mouseleave', () => { this.style.background='rgba(255,255,255,0.15)'; this.style.transform='translateY(0)'; });");
+
+                Anchor btnPdf = new Anchor("/exportar/empleadores.pdf", "");
+                btnPdf.setTarget("_blank");
+                btnPdf.getStyle()
+                                .set("display", "inline-flex").set("align-items", "center").set("gap", "8px")
+                                .set("background", "rgba(255,255,255,0.15)").set("color", "white")
+                                .set("padding", "10px 18px").set("border-radius", "8px")
+                                .set("font-weight", "600").set("font-size", "13px")
+                                .set("text-decoration", "none").set("cursor", "pointer")
+                                .set("border", "1px solid rgba(255,255,255,0.3)")
+                                .set("transition", "all 0.3s ease");
+                btnPdf.getElement().executeJs(
+                                "this.innerHTML = $0",
+                                "<span style='display:inline-flex;align-items:center;gap:8px;'><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16' fill='#ffffff'><path d='M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z'/></svg><span>Exportar PDF</span></span>");
+                btnPdf.getElement().executeJs(
+                                "this.addEventListener('mouseenter', () => { this.style.background='rgba(255,255,255,0.25)'; this.style.transform='translateY(-2px)'; });"
+                                                + "this.addEventListener('mouseleave', () => { this.style.background='rgba(255,255,255,0.15)'; this.style.transform='translateY(0)'; });");
+
+                botones.add(btnExcel, btnPdf);
+
+                Div circ = new Div();
+                circ.getStyle()
+                                .set("position", "absolute")
+                                .set("top", "-60px").set("right", "-60px")
+                                .set("width", "220px").set("height", "220px")
+                                .set("background", "rgba(255,255,255,0.04)")
+                                .set("border-radius", "50%")
+                                .set("z-index", "0");
+
+                header.add(circ, titulo, sub, botones);
+                return header;
+        }
+
+        // ================================================================
+        // NUEVO DISEÑO DEL UNIVARIADO (Tabla -> Gráfico -> Tabla -> Gráfico)
+        // ================================================================
         private VerticalLayout construirTabUnivariado() {
                 VerticalLayout v = new VerticalLayout();
                 v.setPadding(false);
                 v.setSpacing(true);
+                v.add(construirKPIs());
                 v.add(construirFiltros());
                 v.add(construirTablaCompleta());
-                v.add(construir411());
-                v.add(construir412());
-                v.add(construir413());
-                v.add(construir414());
+
+                // 1. Caracterización
+                v.add(Componentes.seccion("1. Caracterización de las Organizaciones",
+                                "Tipo, tamaño y sector productivo.",
+                                new H4("Tabla: Tipo de organización"),
+                                Componentes.tablaFrecuencias(analisis.frecuenciasTipoOrg(), "Tipo"),
+                                graficoTorta("torta_tipo", analisis.frecuenciasTipoOrg(),
+                                                new String[] { COLOR_PRINCIPAL, COLOR_NARANJA },
+                                                "Distribución por tipo", "Gráfico: Tipo de organización"),
+
+                                new H4("Tabla: Tamaño"),
+                                Componentes.tablaFrecuencias(analisis.frecuenciasTamano(), "Tamaño"),
+                                graficoBarras("bars_tamano", analisis.frecuenciasTamano(), COLOR_SECUNDARIO,
+                                                "Distribución por tamaño", "Gráfico: Tamaño"),
+
+                                new H4("Tabla: Sector / Rubro"),
+                                Componentes.tablaFrecuencias(analisis.frecuenciasSector(), "Sector"),
+                                graficoBarras("bars_sector", analisis.frecuenciasSector(), COLOR_VERDE,
+                                                "Distribución por sector", "Gráfico: Sector")));
+
+                // 2. Demanda y Proyección
+                v.add(Componentes.seccion("2. Demanda y Proyección de Contratación",
+                                "Contratación en los últimos 5 años y expectativas futuras.",
+                                new H4("Tabla: ¿Contrató en los últimos 5 años?"),
+                                Componentes.tablaFrecuencias(analisis.frecuenciasContrato5a(), "Contrato"),
+                                graficoTorta("torta_contrato", analisis.frecuenciasContrato5a(),
+                                                new String[] { COLOR_VERDE, COLOR_GRIS }, "Contratación 5 años",
+                                                "Gráfico: Contratación 5 años"),
+
+                                new H4("Tabla: Proyección de contratación"),
+                                Componentes.tablaFrecuencias(analisis.frecuenciasProyeccion(), "Proyección"),
+                                graficoBarras("bars_proyeccion", analisis.frecuenciasProyeccion(), COLOR_MORADO,
+                                                "Proyección de contratación", "Gráfico: Proyección"),
+
+                                new H4("Tabla: Medio de convocatoria (multi-selección)"),
+                                Componentes.tablaFrecuencias(analisis.distribucionMedio(), "Medio"),
+                                graficoBarras("bars_medio", analisis.distribucionMedio(), COLOR_NARANJA,
+                                                "Medio de convocatoria", "Gráfico: Medio de convocatoria")));
+
+                // 3. Nivel Académico y Cargos
+                v.add(Componentes.seccion("3. Nivel Académico y Cargos Requeridos",
+                                "Nivel de formación exigido y cargos desempeñados.",
+                                new H4("Tabla: Nivel académico demandado"),
+                                Componentes.tablaFrecuencias(analisis.frecuenciasNivelAcademico(), "Nivel"),
+                                graficoBarras("bars_nivel", analisis.frecuenciasNivelAcademico(), COLOR_MORADO,
+                                                "Nivel académico demandado", "Gráfico: Nivel académico"),
+
+                                new H4("Tabla: Cargos desempeñados (multi-selección)"),
+                                Componentes.tablaFrecuencias(analisis.distribucionCargos(), "Cargo"),
+                                graficoBarras("bars_cargos", analisis.distribucionCargos(), COLOR_SECUNDARIO,
+                                                "Cargos demandados", "Gráfico: Cargos")));
+
+                // 4. Tendencias y Competencias
+                v.add(Componentes.seccion("4. Tendencias Tecnológicas y Competencias",
+                                "Análisis de texto libre sobre herramientas y habilidades requeridas.",
+                                new H4("Tabla: Demanda de IA"),
+                                Componentes.tablaFrecuencias(analisis.frecuenciasDemandaIA(), "Demanda IA"),
+                                graficoBarras("bars_ia", analisis.frecuenciasDemandaIA(), COLOR_MORADO, "Demanda de IA",
+                                                "Gráfico: Demanda IA"),
+
+                                new H4("Tabla: Tendencias emergentes"),
+                                Componentes.tablaFrecuencias(analisis.distribucionTendencias(), "Tendencia"),
+                                graficoBarras("bars_tendencias", analisis.distribucionTendencias(), COLOR_NARANJA,
+                                                "Tendencias emergentes", "Gráfico: Tendencias"),
+
+                                new H4("Tabla: Hard Skills"),
+                                Componentes.tablaFrecuencias(analisis.distribucionHardSkills(), "Hard Skill"),
+                                graficoBarras("bars_hard", analisis.distribucionHardSkills(), COLOR_PRINCIPAL,
+                                                "Hard skills más mencionadas", "Gráfico: Hard skills"),
+
+                                new H4("Tabla: Soft Skills"),
+                                Componentes.tablaFrecuencias(analisis.distribucionSoftSkills(), "Soft Skill"),
+                                graficoBarras("bars_soft", analisis.distribucionSoftSkills(), COLOR_VERDE,
+                                                "Soft skills más mencionadas", "Gráfico: Soft skills")));
+
+                // 5. Evaluación Institucional
                 v.add(construir415());
-                v.add(construirGraficos());
+
+                return v;
+        }
+
+        private VerticalLayout construirKPIs() {
+                HorizontalLayout fila = Componentes.filaKpis(
+                                Componentes.tarjetaKpi("Total", String.valueOf(repositorio.count()), "organizaciones"),
+                                Componentes.tarjetaKpi("Privadas", pct("tipo_organizacion", "PRIVADO"), "del total"),
+                                Componentes.tarjetaKpi("Públicas", pct("tipo_organizacion", "PUBLICO"), "del total"),
+                                Componentes.tarjetaKpi("Software", pct("sector_rubro", "DESARROLLO_SOFTWARE"),
+                                                "del total"));
+                VerticalLayout v = new VerticalLayout(fila);
+                v.setPadding(false);
                 return v;
         }
 
@@ -209,7 +391,7 @@ public class VistaEmpleadores extends VerticalLayout {
                                 .set("align-self", "flex-end").set("padding-bottom", "8px");
                 HorizontalLayout fila = new HorizontalLayout(sub, conteoMostrado);
                 fila.setWidthFull();
-                fila.getStyle().set("gap", "16px").set("align-items", "flex-end");
+                fila.getStyle().set("gap", "16px").set("align-items", "flex-end").set("margin-top", "16px");
                 return fila;
         }
 
@@ -287,6 +469,14 @@ public class VistaEmpleadores extends VerticalLayout {
                                 idx);
         }
 
+        private static String truncar(String texto, int max) {
+                if (texto == null)
+                        return "";
+                if (texto.length() <= max)
+                        return texto;
+                return texto.substring(0, max - 3) + "...";
+        }
+
         private VerticalLayout construirTablaCompleta() {
                 VerticalLayout v = new VerticalLayout();
                 v.setPadding(false);
@@ -308,7 +498,7 @@ public class VistaEmpleadores extends VerticalLayout {
                         for (Campo c : entry.getValue()) {
                                 Grid.Column<Empleador> col = tabla.addColumn(t -> {
                                         String vc = c.getter().apply(t);
-                                        return vc == null ? "" : vc;
+                                        return truncar(vc, 50);
                                 }).setHeader(c.etiqueta()).setAutoWidth(true).setResizable(true);
                                 col.setPartNameGenerator(t -> parteGrupo);
                                 mapaColumnas.put(c.clave(), col);
@@ -347,8 +537,11 @@ public class VistaEmpleadores extends VerticalLayout {
         private void abrirModalDetalle(Empleador t) {
                 Dialog modal = new Dialog();
                 modal.setHeaderTitle("Detalle de la organización: " + t.getNombreEmpresa());
-                modal.setWidth("900px");
+                modal.setWidth("1100px");
                 modal.setHeight("90vh");
+                modal.setCloseOnOutsideClick(true);
+                modal.setCloseOnEsc(true);
+                modal.getElement().getStyle().set("border-radius", "14px");
 
                 VerticalLayout cont = new VerticalLayout();
                 cont.setPadding(false);
@@ -395,28 +588,19 @@ public class VistaEmpleadores extends VerticalLayout {
                         }
                 }
                 cont.add(acc);
+
+                Button btnCerrar = new Button("Cerrar", new Icon(VaadinIcon.CLOSE));
+                btnCerrar.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+                btnCerrar.getStyle().set("background", COLOR_PRINCIPAL).set("color", "white");
+                btnCerrar.addClickListener(e -> modal.close());
+                HorizontalLayout footer = new HorizontalLayout(btnCerrar);
+                footer.setWidthFull();
+                footer.setJustifyContentMode(FlexComponent.JustifyContentMode.END);
+                footer.getStyle().set("margin-top", "16px");
+
+                cont.add(footer);
                 modal.add(cont);
                 modal.open();
-        }
-
-        private VerticalLayout construir411() {
-                VerticalLayout v = new VerticalLayout();
-                v.setPadding(false);
-                v.add(new H3("Caracterización de las Organizaciones"));
-                HorizontalLayout fila = Componentes.filaKpis(
-                                Componentes.tarjetaKpi("Total", String.valueOf(repositorio.count()), "organizaciones"),
-                                Componentes.tarjetaKpi("Privadas", pct("tipo_organizacion", "PRIVADO"), "del total"),
-                                Componentes.tarjetaKpi("Públicas", pct("tipo_organizacion", "PUBLICO"), "del total"),
-                                Componentes.tarjetaKpi("Software", pct("sector_rubro", "DESARROLLO_SOFTWARE"),
-                                                "del total"));
-                v.add(fila);
-                v.add(new H4("Tipo de organización"));
-                v.add(Componentes.tablaFrecuencias(analisis.frecuenciasTipoOrg(), "Tipo"));
-                v.add(new H4("Tamaño"));
-                v.add(Componentes.tablaFrecuencias(analisis.frecuenciasTamano(), "Tamaño"));
-                v.add(new H4("Sector / Rubro"));
-                v.add(Componentes.tablaFrecuencias(analisis.frecuenciasSector(), "Sector"));
-                return v;
         }
 
         private String pct(String col, String valor) {
@@ -428,89 +612,46 @@ public class VistaEmpleadores extends VerticalLayout {
                 return String.format(Locale.US, "%.1f%%", 100.0 * n / total);
         }
 
-        private VerticalLayout construir412() {
-                VerticalLayout v = new VerticalLayout();
-                v.setPadding(false);
-                v.add(new H3("Demanda y Proyección de Contratación"));
-                v.add(new H4("¿Contrató los últimos 5 años?"));
-                v.add(Componentes.tablaFrecuencias(analisis.frecuenciasContrato5a(), "Contrato"));
-                v.add(new H4("Proyección de contratación"));
-                v.add(Componentes.tablaFrecuencias(analisis.frecuenciasProyeccion(), "Proyección"));
-                v.add(new H4("Medio de convocatoria (multi-selección)"));
-                v.add(Componentes.tablaFrecuencias(analisis.distribucionMedio(), "Medio"));
-                return v;
-        }
-
-        private VerticalLayout construir413() {
-                VerticalLayout v = new VerticalLayout();
-                v.setPadding(false);
-                v.add(new H3("Nivel Académico y Cargos Requeridos"));
-                v.add(new H4("Nivel académico demandado"));
-                v.add(Componentes.tablaFrecuencias(analisis.frecuenciasNivelAcademico(), "Nivel"));
-                v.add(new H4("Cargos desempeñados (multi-selección)"));
-                v.add(Componentes.tablaFrecuencias(analisis.distribucionCargos(), "Cargo"));
-                Paragraph nota = new Paragraph(
-                                "Los porcentajes de cargos pueden sumar más de 100% por ser selección múltiple.");
-                nota.getStyle().set("font-style", "italic").set("font-size", "12px").set("color", "#666");
-                v.add(nota);
-                return v;
-        }
-
-        private VerticalLayout construir414() {
-                VerticalLayout v = new VerticalLayout();
-                v.setPadding(false);
-                v.add(new H3("Tendencias Tecnológicas y Competencias"));
-                v.add(new H4("Demanda de IA"));
-                v.add(Componentes.tablaFrecuencias(analisis.frecuenciasDemandaIA(), "Demanda IA"));
-                v.add(new H4("Tendencias emergentes"));
-                v.add(Componentes.tablaFrecuencias(analisis.distribucionTendencias(), "Tendencia"));
-                v.add(new H4("Hard Skills"));
-                v.add(Componentes.tablaFrecuencias(analisis.distribucionHardSkills(), "Hard Skill"));
-                v.add(new H4("Soft Skills"));
-                v.add(Componentes.tablaFrecuencias(analisis.distribucionSoftSkills(), "Soft Skill"));
-                return v;
-        }
-
         private VerticalLayout construir415() {
                 VerticalLayout v = new VerticalLayout();
                 v.setPadding(false);
-                v.add(new H3("Evaluación Institucional (Matriz Likert)"));
+                v.add(new H3("5. Evaluación Institucional (Matriz Likert)"));
                 Paragraph nota = new Paragraph(
-                        "18 ítems en escala 1-3 (1 = Totalmente en desacuerdo, "
-                      + "2 = Parcialmente de acuerdo, 3 = Totalmente de acuerdo). "
-                      + "'No sabe' y vacío se excluyen.");
+                                "18 ítems en escala 1-3 (1 = Totalmente en desacuerdo, "
+                                                + "2 = Parcialmente de acuerdo, 3 = Totalmente de acuerdo). "
+                                                + "'No sabe' y vacío se excluyen.");
                 nota.getStyle().set("font-style", "italic").set("font-size", "12px").set("color", "#666");
                 v.add(nota);
 
                 ServicioAnalisis.ResumenItem item4 = analisis.fichaItem4();
 
                 double mediaA = analisis.mediasPorDimension("A").stream()
-                        .mapToDouble(d -> d).average().orElse(Double.NaN);
+                                .mapToDouble(d -> d).average().orElse(Double.NaN);
                 double mediaB = analisis.mediasPorDimension("B").stream()
-                        .mapToDouble(d -> d).average().orElse(Double.NaN);
+                                .mapToDouble(d -> d).average().orElse(Double.NaN);
                 double media4 = item4.media();
 
                 int nA = analisis.mediasPorDimension("A").size();
                 int nB = analisis.mediasPorDimension("B").size();
 
                 HorizontalLayout kpis = Componentes.filaKpis(
-                        Componentes.tarjetaKpi("Dimensión A — Calidad e Imagen",
-                                String.format(Locale.US, "%.2f/3", mediaA),
-                                "6 ítems · n=" + nA),
-                        Componentes.tarjetaKpi("Dimensión B — Vinculación y Retroalimentación",
-                                String.format(Locale.US, "%.2f/3", mediaB),
-                                "11 ítems · n=" + nB),
-                        Componentes.tarjetaKpi("Ítem 4 — Conoce el perfil de egreso",
-                                String.format(Locale.US, "%.2f/3", media4),
-                                "Reporte individual · n=" + item4.n()));
+                                Componentes.tarjetaKpi("Dimensión A — Calidad e Imagen",
+                                                String.format(Locale.US, "%.2f/3", mediaA),
+                                                "6 ítems · n=" + nA),
+                                Componentes.tarjetaKpi("Dimensión B — Vinculación y Retroalimentación",
+                                                String.format(Locale.US, "%.2f/3", mediaB),
+                                                "11 ítems · n=" + nB),
+                                Componentes.tarjetaKpi("Ítem 4 — Conoce el perfil de egreso",
+                                                String.format(Locale.US, "%.2f/3", media4),
+                                                "Reporte individual · n=" + item4.n()));
                 v.add(kpis);
 
                 v.add(GraficoCanvas.enTarjeta(
-                        GraficoCanvas.radarConEscala("radarEmp",
-                                new double[] { mediaA, mediaB, media4 },
-                                new String[] { "Dimensión A", "Dimensión B", "Ítem 4" },
-                                3, "Radar descriptivo: medias de las dimensiones (escala 1-3)"),
-                        "Gráfico de Radar: 2 dimensiones + ítem 4"));
+                                GraficoCanvas.radarConEscala("radarEmp",
+                                                new double[] { mediaA, mediaB, media4 },
+                                                new String[] { "Dimensión A", "Dimensión B", "Ítem 4" },
+                                                3, "Radar descriptivo: medias de las dimensiones (escala 1-3)"),
+                                "Gráfico de Radar: 2 dimensiones + ítem 4"));
 
                 v.add(new H4("Análisis por ítem (18 ítems)"));
                 Grid<String[]> g = new Grid<>();
@@ -536,49 +677,17 @@ public class VistaEmpleadores extends VerticalLayout {
 
                 v.add(new H4("Agrupación de dimensiones"));
                 v.add(new Paragraph(
-                        "Dimensión A — Calidad e Imagen: ítems 1, 2, 5, 6, 8, 9. "
-                      + "Media de la dimensión: " + String.format(Locale.US, "%.2f", mediaA)
-                      + "/3 (n = " + nA + ")."));
+                                "Dimensión A — Calidad e Imagen: ítems 1, 2, 5, 6, 8, 9. "
+                                                + "Media de la dimensión: " + String.format(Locale.US, "%.2f", mediaA)
+                                                + "/3 (n = " + nA + ")."));
                 v.add(new Paragraph(
-                        "Dimensión B — Vinculación y Retroalimentación: ítems 3, 7, 10, 11, 12, 13, "
-                      + "14, 15, 16, 17, 18. Media de la dimensión: "
-                      + String.format(Locale.US, "%.2f", mediaB) + "/3 (n = " + nB + ")."));
+                                "Dimensión B — Vinculación y Retroalimentación: ítems 3, 7, 10, 11, 12, 13, "
+                                                + "14, 15, 16, 17, 18. Media de la dimensión: "
+                                                + String.format(Locale.US, "%.2f", mediaB) + "/3 (n = " + nB + ")."));
                 v.add(new Paragraph(
-                        "Ítem 4 — Conoce el perfil de egreso: se reporta por separado. Media: "
-                      + String.format(Locale.US, "%.2f", media4) + "/3 (n = " + item4.n() + ")."));
-
-                return v;
-        }
-
-        private VerticalLayout construirGraficos() {
-                VerticalLayout v = new VerticalLayout();
-                v.setPadding(false);
-                v.add(new H3("Visualizaciones"));
-
-                v.add(graficoTorta("torta_tipo", analisis.frecuenciasTipoOrg(),
-                                new String[] { COLOR_PRINCIPAL, COLOR_NARANJA },
-                                "Distribución por tipo", "Tipo de organización"));
-
-                v.add(graficoBarras("bars_tamano", analisis.frecuenciasTamano(),
-                                COLOR_SECUNDARIO, "Distribución por tamaño", "Tamaño"));
-
-                v.add(graficoBarras("bars_sector", analisis.frecuenciasSector(),
-                                COLOR_VERDE, "Distribución por sector", "Sector"));
-
-                v.add(graficoBarras("bars_nivel", analisis.frecuenciasNivelAcademico(),
-                                COLOR_MORADO, "Nivel académico demandado", "Nivel académico"));
-
-                v.add(graficoBarras("bars_tendencias", analisis.distribucionTendencias(),
-                                COLOR_NARANJA, "Tendencias emergentes", "Tendencias"));
-
-                v.add(graficoBarras("bars_hard", analisis.distribucionHardSkills(),
-                                COLOR_PRINCIPAL, "Hard skills más mencionadas", "Hard skills"));
-
-                v.add(graficoBarras("bars_soft", analisis.distribucionSoftSkills(),
-                                COLOR_VERDE, "Soft skills más mencionadas", "Soft skills"));
-
-                v.add(graficoBarras("bars_cargos", analisis.distribucionCargos(),
-                                COLOR_SECUNDARIO, "Cargos demandados", "Cargos"));
+                                "Ítem 4 — Conoce el perfil de egreso: se reporta por separado. Media: "
+                                                + String.format(Locale.US, "%.2f", media4) + "/3 (n = " + item4.n()
+                                                + ")."));
 
                 return v;
         }
@@ -844,52 +953,5 @@ public class VistaEmpleadores extends VerticalLayout {
                                 GraficoCanvas.barrasApiladas(id, ex, ey, fr, colores,
                                                 "Barras apiladas: " + titulo),
                                 "Frecuencia por categoría");
-        }
-
-        private HorizontalLayout construirHeader() {
-            H1 titulo = new H1("Empleadores encuestados (M = " + repositorio.count() + ")");
-            titulo.getStyle().set("margin", "0");
-
-            HorizontalLayout botones = new HorizontalLayout();
-            botones.setSpacing(true);
-            botones.getStyle().set("gap", "10px").set("flex-wrap", "wrap");
-
-            Anchor btnExcel = new Anchor("/exportar/empleadores.xlsx", "");
-            btnExcel.getElement().setAttribute("download", true);
-            btnExcel.getStyle()
-                    .set("display", "inline-flex").set("align-items", "center").set("gap", "8px")
-                    .set("background", COLOR_VERDE).set("color", "white")
-                    .set("padding", "10px 18px").set("border-radius", "8px")
-                    .set("font-weight", "600").set("font-size", "13px")
-                    .set("text-decoration", "none").set("cursor", "pointer")
-                    .set("box-shadow", "0 3px 10px " + COLOR_VERDE + "40")
-                    .set("transition", "all 0.3s ease");
-            btnExcel.getElement().executeJs(
-                    "this.innerHTML = $0",
-                    "<span style='display:inline-flex;align-items:center;gap:8px;'><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16' fill='#ffffff'><path d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/></svg><span>Exportar Excel</span></span>");
-
-            Anchor btnPdf = new Anchor("/exportar/empleadores.pdf", "");
-            btnPdf.setTarget("_blank");
-            btnPdf.getStyle()
-                    .set("display", "inline-flex").set("align-items", "center").set("gap", "8px")
-                    .set("background", COLOR_PRINCIPAL).set("color", "white")
-                    .set("padding", "10px 18px").set("border-radius", "8px")
-                    .set("font-weight", "600").set("font-size", "13px")
-                    .set("text-decoration", "none").set("cursor", "pointer")
-                    .set("box-shadow", "0 3px 10px " + COLOR_PRINCIPAL + "40")
-                    .set("transition", "all 0.3s ease");
-            btnPdf.getElement().executeJs(
-                    "this.innerHTML = $0",
-                    "<span style='display:inline-flex;align-items:center;gap:8px;'><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16' fill='#ffffff'><path d='M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z'/></svg><span>Exportar PDF</span></span>");
-
-            botones.add(btnExcel, btnPdf);
-
-            HorizontalLayout header = new HorizontalLayout(titulo, botones);
-            header.setWidthFull();
-            header.setJustifyContentMode(com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode.BETWEEN);
-            header.setAlignItems(com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment.CENTER);
-            header.getStyle().set("margin-bottom", "16px").set("flex-wrap", "wrap").set("gap", "16px");
-
-            return header;
         }
 }

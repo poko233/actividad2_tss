@@ -13,21 +13,27 @@ import bo.umss.mercado.servidor.servicio.ServicioInterpretacion;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.accordion.Accordion;
 import com.vaadin.flow.component.accordion.AccordionPanel;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.HeaderRow;
+import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.H4;
+import com.vaadin.flow.component.html.ListItem;
 import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.html.UnorderedList;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.html.ListItem;
-import com.vaadin.flow.component.html.UnorderedList;
-import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
 import com.vaadin.flow.data.renderer.ComponentRenderer;
@@ -43,7 +49,6 @@ import java.util.function.Function;
 @PageTitle("Titulados | Mercado UMSS")
 public class VistaTitulados extends VerticalLayout {
 
-        // ---------- Definición de campos (fuente única de verdad) ----------
         private record Campo(String clave, String grupo, String etiqueta,
                         Function<Titulado, String> getter) {
         }
@@ -132,7 +137,6 @@ public class VistaTitulados extends VerticalLayout {
         private final ServicioCruces cruces;
         private final ServicioInterpretacion interpretacion;
 
-        // NO final: se recrea en construirTablaCompleta
         private Grid<Titulado> tabla = new Grid<>(Titulado.class, false);
         private final Span conteoMostrado = new Span();
         private String filtroSubmuestra = "Todas";
@@ -148,6 +152,9 @@ public class VistaTitulados extends VerticalLayout {
                 this.interpretacion = interpretacion;
 
                 inyectarCss();
+                setPadding(true);
+                setSpacing(true);
+                getStyle().set("background", "#f8fafc").set("min-height", "100vh");
 
                 add(construirHeader());
 
@@ -155,6 +162,8 @@ public class VistaTitulados extends VerticalLayout {
                                 new Tab("Univariado"),
                                 new Tab("Bivariado"),
                                 new Tab("Multivariado"));
+                tabs.getStyle().set("margin-bottom", "16px");
+
                 VerticalLayout contenido = new VerticalLayout();
                 contenido.setPadding(false);
                 contenido.add(construirTabUnivariado());
@@ -169,7 +178,6 @@ public class VistaTitulados extends VerticalLayout {
                 add(tabs, contenido);
         }
 
-        // ---------- CSS: SIEMPRE reemplaza el <style> anterior ----------
         private void inyectarCss() {
                 StringBuilder css = new StringBuilder();
                 for (var entry : COLORES_GRUPO.entrySet()) {
@@ -195,28 +203,244 @@ public class VistaTitulados extends VerticalLayout {
                                 .replace(" ", "_");
         }
 
-        // ---------- Tab 1 ----------
+        private Div construirHeader() {
+                Div header = new Div();
+                header.getStyle()
+                                .set("background", COLOR_PRINCIPAL)
+                                .set("padding", "28px 36px")
+                                .set("border-radius", "16px")
+                                .set("color", "white")
+                                .set("margin-bottom", "16px")
+                                .set("box-shadow", "0 6px 20px rgba(11,61,98,.2)")
+                                .set("position", "relative")
+                                .set("overflow", "hidden");
+
+                Div titulo = new Div();
+                titulo.setText("Titulados encuestados (N = " + repositorio.count() + ")");
+                titulo.getStyle()
+                                .set("font-size", "26px")
+                                .set("font-weight", "700")
+                                .set("letter-spacing", "-0.3px")
+                                .set("margin-bottom", "4px")
+                                .set("position", "relative").set("z-index", "1");
+
+                Div sub = new Div();
+                sub.setText("Análisis descriptivo, inferencial y multivariable de los egresados");
+                sub.getStyle()
+                                .set("font-size", "13px")
+                                .set("opacity", "0.85")
+                                .set("margin-bottom", "16px")
+                                .set("position", "relative").set("z-index", "1");
+
+                HorizontalLayout botones = new HorizontalLayout();
+                botones.setSpacing(true);
+                botones.getStyle().set("gap", "10px").set("flex-wrap", "wrap")
+                                .set("position", "relative").set("z-index", "1");
+
+                Anchor btnExcel = new Anchor("/exportar/titulados.xlsx", "");
+                btnExcel.getElement().setAttribute("download", true);
+                btnExcel.getStyle()
+                                .set("display", "inline-flex").set("align-items", "center").set("gap", "8px")
+                                .set("background", "rgba(255,255,255,0.15)").set("color", "white")
+                                .set("padding", "10px 18px").set("border-radius", "8px")
+                                .set("font-weight", "600").set("font-size", "13px")
+                                .set("text-decoration", "none").set("cursor", "pointer")
+                                .set("border", "1px solid rgba(255,255,255,0.3)")
+                                .set("transition", "all 0.3s ease");
+                btnExcel.getElement().executeJs(
+                                "this.innerHTML = $0",
+                                "<span style='display:inline-flex;align-items:center;gap:8px;'><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16' fill='#ffffff'><path d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/></svg><span>Exportar Excel</span></span>");
+                btnExcel.getElement().executeJs(
+                                "this.addEventListener('mouseenter', () => { this.style.background='rgba(255,255,255,0.25)'; this.style.transform='translateY(-2px)'; });"
+                                                + "this.addEventListener('mouseleave', () => { this.style.background='rgba(255,255,255,0.15)'; this.style.transform='translateY(0)'; });");
+
+                Anchor btnPdf = new Anchor("/exportar/titulados.pdf", "");
+                btnPdf.setTarget("_blank");
+                btnPdf.getStyle()
+                                .set("display", "inline-flex").set("align-items", "center").set("gap", "8px")
+                                .set("background", "rgba(255,255,255,0.15)").set("color", "white")
+                                .set("padding", "10px 18px").set("border-radius", "8px")
+                                .set("font-weight", "600").set("font-size", "13px")
+                                .set("text-decoration", "none").set("cursor", "pointer")
+                                .set("border", "1px solid rgba(255,255,255,0.3)")
+                                .set("transition", "all 0.3s ease");
+                btnPdf.getElement().executeJs(
+                                "this.innerHTML = $0",
+                                "<span style='display:inline-flex;align-items:center;gap:8px;'><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16' fill='#ffffff'><path d='M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z'/></svg><span>Exportar PDF</span></span>");
+                btnPdf.getElement().executeJs(
+                                "this.addEventListener('mouseenter', () => { this.style.background='rgba(255,255,255,0.25)'; this.style.transform='translateY(-2px)'; });"
+                                                + "this.addEventListener('mouseleave', () => { this.style.background='rgba(255,255,255,0.15)'; this.style.transform='translateY(0)'; });");
+
+                botones.add(btnExcel, btnPdf);
+
+                Div circ = new Div();
+                circ.getStyle()
+                                .set("position", "absolute")
+                                .set("top", "-60px").set("right", "-60px")
+                                .set("width", "220px").set("height", "220px")
+                                .set("background", "rgba(255,255,255,0.04)")
+                                .set("border-radius", "50%")
+                                .set("z-index", "0");
+
+                header.add(circ, titulo, sub, botones);
+                return header;
+        }
+
+        // ================================================================
+        // NUEVO DISEÑO DEL UNIVARIADO (Tabla -> Gráfico -> Tabla -> Gráfico)
+        // ================================================================
         private VerticalLayout construirTabUnivariado() {
                 VerticalLayout v = new VerticalLayout();
                 v.setPadding(false);
                 v.setSpacing(true);
+                v.add(construirTabla17());
                 v.add(construirFiltros());
                 v.add(construirTablaCompleta());
-                v.add(construirTabla17());
-                v.add(construirTabla1());
-                v.add(construirTabla2());
-                v.add(construirTabla3());
-                v.add(construirTabla10());
-                v.add(construirTabla11());
-                v.add(construirTabla12());
-                v.add(construirTabla13());
-                v.add(construirTabla14());
-                v.add(construirGraficos());
+
+                // 1. Caracterización Demográfica
+                Map<String, Integer> genero = analisis.frecuenciasDe("genero");
+                Map<String, Integer> situacion = analisis.frecuenciasDe("situacion_laboral_actual");
+                Map<String, Integer> edadRango = new LinkedHashMap<>();
+                for (String val : analisis.columnaDe(analisis.mapasTitulados(), "edad")) {
+                        try {
+                                double e = Double.parseDouble(val);
+                                String k = e <= 22 ? "19-22"
+                                                : e <= 26 ? "23-26" : e <= 30 ? "27-30" : e <= 34 ? "31-34" : "35+";
+                                edadRango.merge(k, 1, Integer::sum);
+                        } catch (NumberFormatException ignored) {
+                        }
+                }
+
+                v.add(Componentes.seccion("1. Caracterización Demográfica",
+                                "Distribución de los titulados por edad, género y situación laboral.",
+                                new H4("Tabla: Edad por rango"),
+                                Componentes.tablaFrecuencias(edadRango, "Rango de edad"),
+                                graficoBarras("barsEdad", edadRango, COLOR_PRINCIPAL, "Distribución por rango de edad",
+                                                "Gráfico: Edad por rango"),
+
+                                new H4("Tabla: Género"),
+                                Componentes.tablaFrecuencias(genero, "Género"),
+                                graficoTorta("tortaGenero", genero,
+                                                new String[] { COLOR_PRINCIPAL, COLOR_NARANJA, COLOR_MORADO },
+                                                "Distribución por género", "Gráfico: Género"),
+
+                                new H4("Tabla: Situación laboral"),
+                                Componentes.tablaFrecuencias(situacion, "Situación"),
+                                graficoTorta("tortaSituacion", situacion,
+                                                new String[] { COLOR_VERDE, COLOR_NARANJA, COLOR_MORADO },
+                                                "Distribución de situación laboral", "Gráfico: Situación laboral")));
+
+                // 2. Trayectoria Profesional
+                ResumenNumerico rn = analisis.resumenNumerico("anios_vida_profesional");
+                Map<String, Integer> tiempoPrimer = analisis.frecuenciasDe("tiempo_primer_empleo");
+                List<Double> antiguedades = analisis.numerosDe(analisis.mapasTitulados(), "anios_vida_profesional");
+                int[] buckets = new int[10];
+                for (double a : antiguedades)
+                        buckets[Math.min(9, (int) (a / 2))]++;
+
+                v.add(Componentes.seccion("2. Trayectoria Profesional",
+                                "Años de vida profesional y tiempo al primer empleo.",
+                                new H4("Tabla: Años de vida profesional"),
+                                Componentes.tablaResumenNumerico(rn, "años"),
+                                GraficoCanvas.enTarjeta(GraficoCanvas.barrasVerticales("histAntiguedad", buckets,
+                                                new String[] { "0-2", "2-4", "4-6", "6-8", "8-10", "10-12", "12-14",
+                                                                "14-16", "16-18", "18+" },
+                                                COLOR_PRINCIPAL, "Distribución de antigüedad (años)"),
+                                                "Gráfico: Histograma de antigüedad"),
+
+                                new H4("Tabla: Tiempo al primer empleo"),
+                                Componentes.tablaFrecuencias(tiempoPrimer, "Tiempo"),
+                                graficoBarras("barsTiempo", tiempoPrimer, COLOR_NARANJA, "Tiempo al primer empleo",
+                                                "Gráfico: Tiempo al primer empleo")));
+
+                // 3. Formación Continua
+                List<Map<String, String>> m = analisis.mapasTitulados();
+                int n = m.size();
+                double form = analisis.proporcionDonde(m, "realizo_formacion_complementaria", val -> val.equals("SI"));
+                double posg = analisis.proporcionDonde(m, "interes_posgrado", val -> val.equals("SI"));
+                double propios = analisis.proporcionDonde(m, "financiamiento_formacion",
+                                val -> LimpiezaDatos.normalizar(val).contains("PROPIO"));
+
+                HorizontalLayout filaKpiForm = Componentes.filaKpis(
+                                Componentes.tarjetaKpiConIC("Formación continua", form,
+                                                IntervalosConfianza.paraProporcion(form, n), "Realizó o realiza"),
+                                Componentes.tarjetaKpiConIC("Interesados en posgrado", posg,
+                                                IntervalosConfianza.paraProporcion(posg, n), "Demanda"),
+                                Componentes.tarjetaKpiConIC("Financiaron con recursos propios", propios,
+                                                IntervalosConfianza.paraProporcion(propios, n),
+                                                "Dependencia económica"));
+
+                Map<String, Integer> formacion = analisis.frecuenciasDe("realizo_formacion_complementaria");
+                Map<String, Integer> nivel = analisis.frecuenciasDe("nivel_posgrado");
+                Map<String, Integer> lugar = analisis.frecuenciasDe("institucion_formacion");
+                Map<String, Integer> fin = analisis.frecuenciasDe("financiamiento_formacion");
+                Map<String, Integer> areas = analisis.frecuenciasDe("area_interes_posgrado");
+
+                v.add(Componentes.seccion("3. Formación Continua y Posgrado",
+                                "Tres tasas fundamentales de la formación complementaria.",
+                                filaKpiForm,
+                                new H4("Tabla: ¿Realizó formación continua?"),
+                                Componentes.tablaFrecuencias(formacion, "Respuesta"),
+                                graficoTorta("tortaFormacion", formacion, new String[] { COLOR_VERDE, COLOR_GRIS },
+                                                "¿Realizó formación complementaria?", "Gráfico: Formación continua"),
+
+                                new H4("Tabla: Nivel de posgrado alcanzado"),
+                                Componentes.tablaFrecuencias(nivel, "Nivel"),
+                                graficoBarras("barsNivel", nivel, COLOR_SECUNDARIO, "Nivel de posgrado alcanzado",
+                                                "Gráfico: Nivel de posgrado"),
+
+                                new H4("Tabla: Institución donde cursó"),
+                                Componentes.tablaFrecuencias(lugar, "Institución"),
+                                graficoBarras("barsInstitucion", lugar, COLOR_VERDE,
+                                                "Institución donde cursó formación", "Gráfico: Institución"),
+
+                                new H4("Tabla: Fuente de financiamiento"),
+                                Componentes.tablaFrecuencias(fin, "Fuente"),
+                                graficoBarras("barsFinanciamiento", fin, COLOR_MORADO, "Distribución de financiamiento",
+                                                "Gráfico: Financiamiento"),
+
+                                new H4("Tabla: Áreas de interés para posgrado"),
+                                Componentes.tablaFrecuencias(areas, "Área"),
+                                graficoBarras("barsAreas", areas, COLOR_VERDE, "Áreas de interés de posgrado",
+                                                "Gráfico: Áreas de interés")));
+
+                // 4. Percepción y Remuneración
+                Map<String, Integer> rem = analisis.frecuenciasDe("remuneracion_rango");
+                Map<String, Integer> sat = analisis.frecuenciasDe("satisfaccion_formacion");
+                Map<String, Integer> conc = analisis.frecuenciasDe("concordancia_formacion_requerimientos");
+
+                List<Double> satisfacciones = analisis.likertDe(analisis.mapasTitulados(), "satisfaccion_formacion");
+                int[] conteoSat = new int[4];
+                for (double s : satisfacciones) {
+                        int idx = (int) Math.round(s) - 1;
+                        if (idx >= 0 && idx < 4)
+                                conteoSat[idx]++;
+                }
+
+                v.add(Componentes.seccion("4. Percepción y Remuneración",
+                                "Rango salarial, satisfacción global y concordancia con el mercado laboral.",
+                                new H4("Tabla: Remuneración"),
+                                Componentes.tablaFrecuencias(rem, "Rango"),
+                                graficoBarras("barsRemuneracion", rem, COLOR_MORADO,
+                                                "Distribución por rango de remuneración", "Gráfico: Remuneración"),
+
+                                new H4("Tabla: Satisfacción con la formación"),
+                                Componentes.tablaFrecuencias(sat, "Nivel"),
+                                GraficoCanvas.enTarjeta(GraficoCanvas.barrasVerticales("barsSatisfaccion", conteoSat,
+                                                new String[] { "1 - Muy en desacuerdo", "2 - En desacuerdo",
+                                                                "3 - De acuerdo", "4 - Totalmente de acuerdo" },
+                                                COLOR_SECUNDARIO, "Distribución de satisfacción"),
+                                                "Gráfico: Satisfacción"),
+
+                                new H4("Tabla: Concordancia formación-requerimientos"),
+                                Componentes.tablaFrecuencias(conc, "Nivel"),
+                                graficoBarras("barsConcordancia", conc, COLOR_NARANJA,
+                                                "Concordancia formación-requerimientos", "Gráfico: Concordancia")));
+
                 v.add(new Paragraph(GuiasLectura.COMO_LEER_INTERVALOS));
                 return v;
         }
 
-        // ---------- Filtros ----------
         private HorizontalLayout construirFiltros() {
                 ComboBox<String> submuestra = new ComboBox<>("Submuestra");
                 submuestra.setItems("Todas",
@@ -244,7 +468,7 @@ public class VistaTitulados extends VerticalLayout {
 
                 HorizontalLayout fila = new HorizontalLayout(submuestra, conteoMostrado);
                 fila.setWidthFull();
-                fila.getStyle().set("gap", "16px").set("align-items", "flex-end");
+                fila.getStyle().set("gap", "16px").set("align-items", "flex-end").set("margin-top", "16px");
                 return fila;
         }
 
@@ -287,7 +511,6 @@ public class VistaTitulados extends VerticalLayout {
                 };
         }
 
-        // ---------- Scroll + flash con Web Animations API ----------
         private void autoScrollYDestacarColumna() {
                 String clave = columnaRelevanteParaFiltro();
                 if (clave == null)
@@ -304,7 +527,6 @@ public class VistaTitulados extends VerticalLayout {
                                                 + "const colIdx = $0;\n"
                                                 + "let intentos = 0;\n"
                                                 + "function paso() {\n"
-                                                // 1) El thead debe tener la fila de headers individuales (la última).
                                                 + "  const shadow = grid.shadowRoot;\n"
                                                 + "  const thead = shadow && shadow.querySelector('thead');\n"
                                                 + "  if (!thead) { if (++intentos < 40) setTimeout(paso, 100); return; }\n"
@@ -312,12 +534,9 @@ public class VistaTitulados extends VerticalLayout {
                                                 + "  if (rows.length < 2) { if (++intentos < 40) setTimeout(paso, 100); return; }\n"
                                                 + "  const ths = rows[rows.length - 1].querySelectorAll('th');\n"
                                                 + "  const targetTh = ths[colIdx];\n"
-                                                // 2) Scroll horizontal suave
                                                 + "  if (targetTh) {\n"
                                                 + "    targetTh.scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'});\n"
                                                 + "  }\n"
-                                                // 3) Flash con WAAPI a los <td> visibles (espera 500ms para que el
-                                                // scroll avance)
                                                 + "  setTimeout(() => {\n"
                                                 + "    const tbody = shadow.querySelector('tbody');\n"
                                                 + "    if (!tbody) return;\n"
@@ -342,13 +561,19 @@ public class VistaTitulados extends VerticalLayout {
                                 idx);
         }
 
-        // ---------- Tabla completa ----------
+        private static String truncar(String texto, int max) {
+                if (texto == null)
+                        return "";
+                if (texto.length() <= max)
+                        return texto;
+                return texto.substring(0, max - 3) + "...";
+        }
+
         private VerticalLayout construirTablaCompleta() {
                 VerticalLayout v = new VerticalLayout();
                 v.setPadding(false);
                 v.add(new H3("Tabla completa de titulados"));
 
-                // Recrear el Grid para evitar duplicar columnas al volver al tab
                 tabla = new Grid<>(Titulado.class, false);
                 mapaColumnas.clear();
 
@@ -365,7 +590,7 @@ public class VistaTitulados extends VerticalLayout {
                         for (Campo c : entry.getValue()) {
                                 Grid.Column<Titulado> col = tabla.addColumn(t -> {
                                         String vc = c.getter().apply(t);
-                                        return vc == null ? "" : vc;
+                                        return truncar(vc, 50);
                                 })
                                                 .setHeader(c.etiqueta())
                                                 .setAutoWidth(true)
@@ -409,12 +634,13 @@ public class VistaTitulados extends VerticalLayout {
                 cell.setComponent(span);
         }
 
-        // ---------- Modal con Accordion ----------
         private void abrirModalDetalle(Titulado t) {
                 Dialog modal = new Dialog();
                 modal.setHeaderTitle("Detalle del titulado: " + t.getIdTitulado());
-                modal.setWidth("900px");
+                modal.setWidth("1100px");
                 modal.setHeight("90vh");
+                modal.setCloseOnOutsideClick(true);
+                modal.setCloseOnEsc(true);
                 modal.getElement().getStyle().set("border-radius", "14px");
 
                 VerticalLayout cont = new VerticalLayout();
@@ -475,11 +701,21 @@ public class VistaTitulados extends VerticalLayout {
                 }
 
                 cont.add(acc);
+
+                Button btnCerrar = new Button("Cerrar", new Icon(VaadinIcon.CLOSE));
+                btnCerrar.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+                btnCerrar.getStyle().set("background", COLOR_PRINCIPAL).set("color", "white");
+                btnCerrar.addClickListener(e -> modal.close());
+                HorizontalLayout footer = new HorizontalLayout(btnCerrar);
+                footer.setWidthFull();
+                footer.setJustifyContentMode(FlexComponent.JustifyContentMode.END);
+                footer.getStyle().set("margin-top", "16px");
+
+                cont.add(footer);
                 modal.add(cont);
                 modal.open();
         }
 
-        // ---------- Tabla 17 ----------
         private VerticalLayout construirTabla17() {
                 List<Map<String, String>> m = analisis.mapasTitulados();
                 int n = m.size();
@@ -507,165 +743,6 @@ public class VistaTitulados extends VerticalLayout {
 
                 return Componentes.seccion("Indicadores clave con IC 95% (Wilson)",
                                 "Cada tarjeta muestra la proporción real y su intervalo de confianza al 95%.", fila);
-        }
-
-        // ---------- Otras tablas ----------
-        private VerticalLayout construirTabla1() {
-                Map<String, Integer> genero = analisis.frecuenciasDe("genero");
-                Map<String, Integer> situacion = analisis.frecuenciasDe("situacion_laboral_actual");
-                Map<String, Integer> edadRango = new LinkedHashMap<>();
-                for (String v : analisis.columnaDe(analisis.mapasTitulados(), "edad")) {
-                        try {
-                                double e = Double.parseDouble(v);
-                                String k = e <= 22 ? "19-22"
-                                                : e <= 26 ? "23-26"
-                                                                : e <= 30 ? "27-30"
-                                                                                : e <= 34 ? "31-34" : "35+";
-                                edadRango.merge(k, 1, Integer::sum);
-                        } catch (NumberFormatException ignored) {
-                        }
-                }
-                return Componentes.seccion("Tabla Caracterización demográfica",
-                                "Distribución de los titulados por edad, género y situación laboral.",
-                                new H3("Tabla Edad por rango"),
-                                Componentes.tablaFrecuencias(edadRango, "Rango de edad"),
-                                new H3("Tabla Género"), Componentes.tablaFrecuencias(genero, "Género"),
-                                new H3("Tabla Situación laboral"),
-                                Componentes.tablaFrecuencias(situacion, "Situación"));
-        }
-
-        private VerticalLayout construirTabla2() {
-                ResumenNumerico r = analisis.resumenNumerico("anios_vida_profesional");
-                return Componentes.seccion("Tabla Años de vida profesional",
-                                "El coeficiente de variación > 30% indica alta heterogeneidad.",
-                                Componentes.tablaResumenNumerico(r, "años"));
-        }
-
-        private VerticalLayout construirTabla3() {
-                Map<String, Integer> f = analisis.frecuenciasDe("tiempo_primer_empleo");
-                return Componentes.seccion("Tabla Tiempo al primer empleo",
-                                "Frecuencia y porcentaje del tiempo que tardaron en conseguir su primer empleo.",
-                                Componentes.tablaFrecuencias(f, "Tiempo"));
-        }
-
-        private VerticalLayout construirTabla10() {
-                List<Map<String, String>> m = analisis.mapasTitulados();
-                int n = m.size();
-                double form = analisis.proporcionDonde(m, "realizo_formacion_complementaria", v -> v.equals("SI"));
-                double posg = analisis.proporcionDonde(m, "interes_posgrado", v -> v.equals("SI"));
-                double propios = analisis.proporcionDonde(m, "financiamiento_formacion",
-                                v -> LimpiezaDatos.normalizar(v).contains("PROPIO"));
-                HorizontalLayout fila = Componentes.filaKpis(
-                                Componentes.tarjetaKpiConIC("Formación continua", form,
-                                                IntervalosConfianza.paraProporcion(form, n), "Realizó o realiza"),
-                                Componentes.tarjetaKpiConIC("Interesados en posgrado", posg,
-                                                IntervalosConfianza.paraProporcion(posg, n), "Demanda"),
-                                Componentes.tarjetaKpiConIC("Financiaron con recursos propios", propios,
-                                                IntervalosConfianza.paraProporcion(propios, n),
-                                                "Dependencia económica"));
-                return Componentes.seccion("Indicadores de formación continua",
-                                "Tres tasas fundamentales de la formación complementaria.", fila);
-        }
-
-        private VerticalLayout construirTabla11() {
-                Map<String, Integer> nivel = analisis.frecuenciasDe("nivel_posgrado");
-                Map<String, Integer> lugar = analisis.frecuenciasDe("institucion_formacion");
-                return Componentes.seccion("Nivel y lugar de formación",
-                                "Nivel alcanzado y dónde cursó la formación complementaria.",
-                                new H3("Tabla Nivel alcanzado"), Componentes.tablaFrecuencias(nivel, "Nivel"),
-                                new H3("Tabla Lugar donde cursó"), Componentes.tablaFrecuencias(lugar, "Institución"));
-        }
-
-        private VerticalLayout construirTabla12() {
-                Map<String, Integer> fin = analisis.frecuenciasDe("financiamiento_formacion");
-                return Componentes.seccion("Tabla Fuente de financiamiento",
-                                "Distribución de quién pagó la formación complementaria.",
-                                Componentes.tablaFrecuencias(fin, "Fuente"));
-        }
-
-        private VerticalLayout construirTabla13() {
-                Map<String, Integer> areas = analisis.frecuenciasDe("area_interes_posgrado");
-                return Componentes.seccion("Tabla Áreas de interés para posgrado",
-                                "Preferencia de áreas declaradas por los titulados.",
-                                Componentes.tablaFrecuencias(areas, "Área"));
-        }
-
-        private VerticalLayout construirTabla14() {
-                Map<String, Integer> sat = analisis.frecuenciasDe("satisfaccion_formacion");
-                Map<String, Integer> conc = analisis.frecuenciasDe("concordancia_formacion_requerimientos");
-                return Componentes.seccion("Satisfacción y concordancia",
-                                "Percepción de los titulados sobre la formación recibida.",
-                                new H3("Tabla Satisfacción global"), Componentes.tablaFrecuencias(sat, "Nivel"),
-                                new H3("Tabla Concordancia formación-requerimientos"),
-                                Componentes.tablaFrecuencias(conc, "Nivel"));
-        }
-
-        // ---------- Gráficos ----------
-        private VerticalLayout construirGraficos() {
-                VerticalLayout v = new VerticalLayout();
-                v.setPadding(false);
-
-                List<Double> antiguedades = analisis.numerosDe(analisis.mapasTitulados(), "anios_vida_profesional");
-                int[] buckets = new int[10];
-                for (double a : antiguedades)
-                        buckets[Math.min(9, (int) (a / 2))]++;
-                v.add(GraficoCanvas.enTarjeta(
-                                GraficoCanvas.barrasVerticales("histAntiguedad", buckets,
-                                                new String[] { "0-2", "2-4", "4-6", "6-8", "8-10", "10-12", "12-14",
-                                                                "14-16", "16-18", "18+" },
-                                                COLOR_PRINCIPAL, "Distribución de antigüedad (años)"),
-                                "Histograma de antigüedad"));
-
-                List<Double> satisfacciones = analisis.likertDe(analisis.mapasTitulados(), "satisfaccion_formacion");
-                int[] conteoSat = new int[4];
-                for (double s : satisfacciones) {
-                        int idx = (int) Math.round(s) - 1;
-                        if (idx >= 0 && idx < 4)
-                                conteoSat[idx]++;
-                }
-                v.add(GraficoCanvas.enTarjeta(
-                                GraficoCanvas.barrasVerticales("barsSatisfaccion", conteoSat,
-                                                new String[] { "1 - Muy en desacuerdo", "2 - En desacuerdo",
-                                                                "3 - De acuerdo", "4 - Totalmente de acuerdo" },
-                                                COLOR_SECUNDARIO, "Distribución de satisfacción"),
-                                "Satisfacción con la formación"));
-
-                v.add(graficoBarras("barsAreas", analisis.frecuenciasDe("area_interes_posgrado"),
-                                COLOR_VERDE, "Áreas de interés de posgrado", "Áreas de interés"));
-                v.add(graficoTorta("tortaSituacion", analisis.frecuenciasDe("situacion_laboral_actual"),
-                                new String[] { COLOR_VERDE, COLOR_NARANJA, COLOR_MORADO },
-                                "Distribución de situación laboral", "Situación laboral"));
-                v.add(graficoTorta("tortaGenero", analisis.frecuenciasDe("genero"),
-                                new String[] { COLOR_PRINCIPAL, COLOR_NARANJA, COLOR_MORADO },
-                                "Distribución por género", "Género"));
-
-                Map<String, Integer> edadRango = new LinkedHashMap<>();
-                for (String v2 : analisis.columnaDe(analisis.mapasTitulados(), "edad")) {
-                        try {
-                                double e = Double.parseDouble(v2);
-                                String k = e <= 22 ? "19-22"
-                                                : e <= 26 ? "23-26"
-                                                                : e <= 30 ? "27-30"
-                                                                                : e <= 34 ? "31-34" : "35+";
-                                edadRango.merge(k, 1, Integer::sum);
-                        } catch (NumberFormatException ignored) {
-                        }
-                }
-                v.add(graficoBarras("barsEdad", edadRango, COLOR_PRINCIPAL,
-                                "Distribución por rango de edad", "Rango de edad"));
-
-                v.add(graficoTorta("tortaFormacion", analisis.frecuenciasDe("realizo_formacion_complementaria"),
-                                new String[] { COLOR_VERDE, COLOR_GRIS },
-                                "¿Realizó formación complementaria?", "Formación continua"));
-                v.add(graficoBarras("barsTiempo", analisis.frecuenciasDe("tiempo_primer_empleo"),
-                                COLOR_NARANJA, "Tiempo al primer empleo", "Tiempo al primer empleo"));
-                v.add(graficoBarras("barsRemuneracion", analisis.frecuenciasDe("remuneracion_rango"),
-                                COLOR_MORADO, "Distribución por rango de remuneración", "Remuneración"));
-                v.add(graficoBarras("barsNivel", analisis.frecuenciasDe("nivel_posgrado"),
-                                COLOR_SECUNDARIO, "Nivel de posgrado alcanzado", "Nivel de posgrado"));
-                v.add(graficoBarras("barsInstitucion", analisis.frecuenciasDe("institucion_formacion"),
-                                COLOR_VERDE, "Institución donde cursó formación", "Institución"));
-                return v;
         }
 
         private Component graficoBarras(String id, Map<String, Integer> frec,
@@ -700,7 +777,6 @@ public class VistaTitulados extends VerticalLayout {
                                 GraficoCanvas.torta(id, valores, etiquetas, colores, titulo), tarjeta);
         }
 
-        // ---------- Tabs placeholder (Paso 3) ----------
         private VerticalLayout construirTabBivariado() {
                 VerticalLayout v = new VerticalLayout();
                 v.setPadding(false);
@@ -774,7 +850,6 @@ public class VistaTitulados extends VerticalLayout {
                                                 "Dispersión: Área × Financiamiento × Antigüedad"),
                                 "Gráfico de dispersión categorizado (tamaño = n)"));
 
-                // Gráfico de barras apiladas (X × Y por frecuencia)
                 String[] etiquetasX1 = tabla.valoresX().toArray(new String[0]);
                 String[] etiquetasY1 = tabla.valoresY().toArray(new String[0]);
                 int[][] frecStack1 = new int[etiquetasX1.length][etiquetasY1.length];
@@ -826,7 +901,6 @@ public class VistaTitulados extends VerticalLayout {
                                                 "Dispersión: Sector × Cargo × Remuneración"),
                                 "Gráfico de dispersión categorizado (tamaño = n)"));
 
-                // Gráfico de barras apiladas (X × Y por frecuencia)
                 String[] etiquetasX2 = tabla.valoresX().toArray(new String[0]);
                 String[] etiquetasY2 = tabla.valoresY().toArray(new String[0]);
                 int[][] frecStack2 = new int[etiquetasX2.length][etiquetasY2.length];
@@ -884,7 +958,6 @@ public class VistaTitulados extends VerticalLayout {
                                                 "Dispersión: Satisfacción × Concordancia × Antigüedad"),
                                 "Gráfico de dispersión categorizado (tamaño = n)"));
 
-                // Gráfico de barras apiladas (X × Y por frecuencia)
                 String[] etiquetasX3 = tabla.valoresX().toArray(new String[0]);
                 String[] etiquetasY3 = tabla.valoresY().toArray(new String[0]);
                 int[][] frecStack3 = new int[etiquetasX3.length][etiquetasY3.length];
@@ -907,10 +980,6 @@ public class VistaTitulados extends VerticalLayout {
 
                 return v;
         }
-
-        // ================================================================
-        // Helpers del Paso 3 — Bivariado + Multivariado
-        // ================================================================
 
         private record TextoCruce(String titulo, String descripcion, String interpretacion) {
         }
@@ -1201,52 +1270,5 @@ public class VistaTitulados extends VerticalLayout {
                                         c.valorX(), c.valorY(), c.mediaZ(), c.n()));
                 }
                 return puntos;
-        }
-
-        private HorizontalLayout construirHeader() {
-            H1 titulo = new H1("Titulados encuestados (N = " + repositorio.count() + ")");
-            titulo.getStyle().set("margin", "0");
-
-            HorizontalLayout botones = new HorizontalLayout();
-            botones.setSpacing(true);
-            botones.getStyle().set("gap", "10px").set("flex-wrap", "wrap");
-
-            com.vaadin.flow.component.html.Anchor btnExcel = new com.vaadin.flow.component.html.Anchor("/exportar/titulados.xlsx", "");
-            btnExcel.getElement().setAttribute("download", true);
-            btnExcel.getStyle()
-                    .set("display", "inline-flex").set("align-items", "center").set("gap", "8px")
-                    .set("background", COLOR_SECUNDARIO).set("color", "white")
-                    .set("padding", "10px 18px").set("border-radius", "8px")
-                    .set("font-weight", "600").set("font-size", "13px")
-                    .set("text-decoration", "none").set("cursor", "pointer")
-                    .set("box-shadow", "0 3px 10px " + COLOR_SECUNDARIO + "40")
-                    .set("transition", "all 0.3s ease");
-            btnExcel.getElement().executeJs(
-                    "this.innerHTML = $0",
-                    "<span style='display:inline-flex;align-items:center;gap:8px;'><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16' fill='#ffffff'><path d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/></svg><span>Exportar Excel</span></span>");
-
-            com.vaadin.flow.component.html.Anchor btnPdf = new com.vaadin.flow.component.html.Anchor("/exportar/titulados.pdf", "");
-            btnPdf.setTarget("_blank");
-            btnPdf.getStyle()
-                    .set("display", "inline-flex").set("align-items", "center").set("gap", "8px")
-                    .set("background", COLOR_PRINCIPAL).set("color", "white")
-                    .set("padding", "10px 18px").set("border-radius", "8px")
-                    .set("font-weight", "600").set("font-size", "13px")
-                    .set("text-decoration", "none").set("cursor", "pointer")
-                    .set("box-shadow", "0 3px 10px " + COLOR_PRINCIPAL + "40")
-                    .set("transition", "all 0.3s ease");
-            btnPdf.getElement().executeJs(
-                    "this.innerHTML = $0",
-                    "<span style='display:inline-flex;align-items:center;gap:8px;'><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16' fill='#ffffff'><path d='M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z'/></svg><span>Exportar PDF</span></span>");
-
-            botones.add(btnExcel, btnPdf);
-
-            HorizontalLayout header = new HorizontalLayout(titulo, botones);
-            header.setWidthFull();
-            header.setJustifyContentMode(com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode.BETWEEN);
-            header.setAlignItems(com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment.CENTER);
-            header.getStyle().set("margin-bottom", "16px").set("flex-wrap", "wrap").set("gap", "16px");
-
-            return header;
         }
 }
