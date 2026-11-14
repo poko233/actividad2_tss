@@ -155,25 +155,34 @@ public final class PanelCruce {
         Grid<String[]> grid = new Grid<>();
         grid.addColumn(row -> row[0]).setHeader("Fila").setAutoWidth(true);
         grid.addColumn(row -> row[1]).setHeader("n fila").setAutoWidth(true);
-        grid.addColumn(row -> row[2]).setHeader("Proporción col. 1").setAutoWidth(true);
-        grid.addColumn(row -> row[3]).setHeader("IC 95% Wilson").setAutoWidth(true);
+
+        int c = r.columnas().size();
+        for (int j = 0; j < c; j++) {
+            final int col = j;
+            grid.addColumn(row -> row[2 + col * 2])
+                    .setHeader(r.columnas().get(col) + " (%)").setAutoWidth(true);
+            grid.addColumn(row -> row[3 + col * 2])
+                    .setHeader("IC Wilson " + r.columnas().get(col)).setAutoWidth(true);
+        }
 
         List<String[]> filas = new ArrayList<>();
-        int c = r.columnas().size();
         for (int i = 0; i < r.filas().size(); i++) {
             long total = 0;
             for (int j = 0; j < c; j++) total += r.observadas()[i][j];
             if (total == 0) continue;
-            long obsCol1 = r.observadas()[i][0];
-            double p = (double) obsCol1 / total;
-            double[] ic = ics.get(i * c);
-            filas.add(new String[]{
-                    r.filas().get(i),
-                    String.valueOf(total),
-                    Componentes.redondear(p * 100, 1) + "%",
-                    "[" + Componentes.redondear(ic[0] * 100, 1) + "%, "
-                            + Componentes.redondear(ic[1] * 100, 1) + "%]"
-            });
+
+            String[] fila = new String[2 + c * 2];
+            fila[0] = r.filas().get(i);
+            fila[1] = String.valueOf(total);
+            for (int j = 0; j < c; j++) {
+                long obs = r.observadas()[i][j];
+                double p = (double) obs / total;
+                double[] ic = ics.get(i * c + j);
+                fila[2 + j * 2] = Componentes.redondear(p * 100, 1) + "%";
+                fila[3 + j * 2] = "[" + Componentes.redondear(ic[0] * 100, 1) + "%, "
+                        + Componentes.redondear(ic[1] * 100, 1) + "%]";
+            }
+            filas.add(fila);
         }
         grid.setItems(filas);
         grid.setAllRowsVisible(true);

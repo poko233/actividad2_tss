@@ -1139,23 +1139,18 @@ public class VistaTitulados extends VerticalLayout {
                 v.setPadding(false);
                 v.setSpacing(true);
 
-                TextoCruce t = TEXTOS_CRUCES.get(c.etiqueta());
-                if (t != null) {
-                        v.add(new H4(numero + ". " + t.titulo()));
-                        Paragraph desc = new Paragraph(t.descripcion());
-                        desc.getStyle().set("font-size", "13px").set("color", "#555");
-                        v.add(desc);
-                }
+                v.add(new H4(numero + ". Relación entre "
+                        + c.columnaA().replace("_", " ") + " y "
+                        + c.columnaB().replace("_", " ")));
 
                 v.add(PanelCruce.render(c, cruces));
 
-                if (t != null && !t.interpretacion().isEmpty()) {
-                        Paragraph p = new Paragraph("Interpretación y recomendación: " + t.interpretacion());
-                        p.getStyle().set("font-style", "italic").set("color", "#2c3e50")
-                                        .set("background", "#f7f9fb").set("padding", "10px 14px")
-                                        .set("border-left", "4px solid #0984e3").set("border-radius", "4px");
-                        v.add(p);
-                }
+                String interpretacion = cruces.interpretarCruceDinamico(c);
+                Paragraph p = new Paragraph("Interpretación y recomendación: " + interpretacion);
+                p.getStyle().set("font-style", "italic").set("color", "#2c3e50")
+                                .set("background", "#f7f9fb").set("padding", "10px 14px")
+                                .set("border-left", "4px solid #0984e3").set("border-radius", "4px");
+                v.add(p);
                 return v;
         }
 

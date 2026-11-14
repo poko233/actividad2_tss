@@ -108,27 +108,152 @@ public class ServicioCruces {
         return matrizDesdeCruces(crucesEmpleadores());
     }
 
+    // ================================================================
+    // IC Wilson por fila (fórmula correcta, no Wald)
+    // ================================================================
     public List<double[]> wilsonPorFila(ResultadoChiCuadrada r) {
         List<double[]> out = new ArrayList<>();
         if (r.observadas() == null)
             return out;
+        double z = 1.96;
+        double z2 = z * z;
         for (int i = 0; i < r.observadas().length; i++) {
             long total = 0;
             for (long v : r.observadas()[i])
                 total += v;
             for (int j = 0; j < r.observadas()[i].length; j++) {
                 long obs = r.observadas()[i][j];
-                double p = total == 0 ? Double.NaN : (double) obs / total;
                 double[] ic = { Double.NaN, Double.NaN };
-                if (!Double.isNaN(p) && total > 0) {
-                    var w = bo.umss.mercado.nucleo.stats.IntervalosConfianza
-                            .paraProporcion(p, (int) total);
-                    ic[0] = w.limiteInferior();
-                    ic[1] = w.limiteSuperior();
+                if (total > 0) {
+                    double p = (double) obs / total;
+                    double n = (double) total;
+                    double centro = (p + z2 / (2 * n)) / (1 + z2 / n);
+                    double margen = (z / (1 + z2 / n))
+                            * Math.sqrt(p * (1 - p) / n + z2 / (4 * n * n));
+                    ic[0] = Math.max(0, centro - margen);
+                    ic[1] = Math.min(1, centro + margen);
                 }
                 out.add(ic);
             }
         }
         return out;
+    }
+
+    // ================================================================
+    // Interpretación dinámica basada en los datos reales del cruce
+    // ================================================================
+    public String interpretarCruceDinamico(FichaCruce cruce) {
+        ResultadoChiCuadrada r = cruce.resultado();
+        if (r == null || r.observadas() == null || r.observadas().length == 0) {
+            return "No hay datos suficientes para interpretar este cruce.";
+        }
+
+        int filas = r.filas().size();
+        int cols = r.columnas().size();
+
+        long totalGeneral = 0;
+        long[] totalPorCol = new long[cols];
+        long[] totalPorFila = new long[filas];
+        for (int i = 0; i < filas; i++) {
+            for (int j = 0; j < cols; j++) {
+                totalPorFila[i] += r.observadas()[i][j];
+                totalPorCol[j] += r.observadas()[i][j];
+                totalGeneral += r.observadas()[i][j];
+            }
+        }
+
+        StringBuilder sb = new StringBuilder();
+
+        if (!r.significativa()) {
+            sb.append("No se encontró evidencia estadística de asociación entre ")
+                    .append(humanizar(cruce.columnaA())).append(" y ")
+                    .append(humanizar(cruce.columnaB()))
+                    .append(" (χ²=").append(redondear(r.chiCuadrada(), 2))
+                    .append(", gl=").append(r.gradosLibertad())
+                    .append(", p=").append(redondear(r.valorP(), 4)).append("). ");
+            sb.append("Los intervalos de confianza al 95% se solapan, lo que sugiere ")
+                    .append("que ambas variables son independientes. ");
+            sb.append("No se recomienda implementar políticas diferenciadas en función ")
+                    .append("de esta variable.");
+            return sb.toString();
+        }
+
+        String intensidad = r.intensidadVCramer();
+        sb.append("Existe una asociación estadísticamente significativa ");
+        if (intensidad.equals("grande") || intensidad.equals("mediano")) {
+            sb.append("y de intensidad ").append(intensidad);
+        }
+        sb.append(" entre ").append(humanizar(cruce.columnaA())).append(" y ")
+                .append(humanizar(cruce.columnaB())).append(" ")
+                .append("(χ²=").append(redondear(r.chiCuadrada(), 2))
+                .append(", gl=").append(r.gradosLibertad())
+                .append(", p=").append(redondear(r.valorP(), 4))
+                .append(", V Cramér=").append(redondear(r.vCramer(), 3)).append("). ");
+
+        int mejorFila = -1, mejorCol = -1;
+        double mejorDesvio = 0;
+        int peorFila = -1, peorCol = -1;
+        double peorDesvio = 0;
+
+        for (int i = 0; i < filas; i++) {
+            if (totalPorFila[i] < 10)
+                continue;
+            for (int j = 0; j < cols; j++) {
+                double esperada = (double) totalPorFila[i] * totalPorCol[j] / totalGeneral;
+                double desvio = r.observadas()[i][j] - esperada;
+                if (desvio > mejorDesvio) {
+                    mejorDesvio = desvio;
+                    mejorFila = i;
+                    mejorCol = j;
+                }
+                if (desvio < peorDesvio) {
+                    peorDesvio = desvio;
+                    peorFila = i;
+                    peorCol = j;
+                }
+            }
+        }
+
+        if (mejorFila >= 0) {
+            double prop = (double) r.observadas()[mejorFila][mejorCol] / totalPorFila[mejorFila];
+            double propGlobal = (double) totalPorCol[mejorCol] / totalGeneral;
+            sb.append("El patrón más fuerte se observa en \"").append(r.filas().get(mejorFila))
+                    .append("\" con \"").append(r.columnas().get(mejorCol)).append("\": ")
+                    .append(redondear(prop * 100, 1)).append("% (n=")
+                    .append(totalPorFila[mejorFila]).append(") frente al ")
+                    .append(redondear(propGlobal * 100, 1)).append("% global. ");
+        }
+
+        if (peorFila >= 0 && peorFila != mejorFila) {
+            double prop = (double) r.observadas()[peorFila][peorCol] / totalPorFila[peorFila];
+            sb.append("En contraste, \"").append(r.filas().get(peorFila))
+                    .append("\" muestra la menor proporción de \"")
+                    .append(r.columnas().get(peorCol)).append("\" (")
+                    .append(redondear(prop * 100, 1)).append("%). ");
+        }
+
+        if (intensidad.equals("grande")) {
+            sb.append("La asociación es fuerte, por lo que se recomienda diseñar políticas ")
+                    .append("focalizadas hacia los segmentos identificados.");
+        } else if (intensidad.equals("mediano")) {
+            sb.append("La asociación es moderada, por lo que conviene monitorear el fenómeno ")
+                    .append("y considerar acciones específicas para los segmentos identificados.");
+        } else {
+            sb.append("Aunque la asociación es significativa, la baja intensidad sugiere ")
+                    .append("revisar los datos con más detalle antes de implementar cambios estructurales.");
+        }
+
+        return sb.toString();
+    }
+
+    private static String humanizar(String col) {
+        return col.replace("_", " ");
+    }
+
+    private static String redondear(double v, int dec) {
+        if (Double.isNaN(v))
+            return "n/d";
+        double f = Math.pow(10, dec);
+        return String.valueOf(Math.round(v * f) / f);
     }
 }

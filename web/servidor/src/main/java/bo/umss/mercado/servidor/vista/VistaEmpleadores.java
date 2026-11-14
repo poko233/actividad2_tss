@@ -749,6 +749,13 @@ public class VistaEmpleadores extends VerticalLayout {
                 v.setSpacing(true);
                 v.add(new H4(numero + ". " + c.etiqueta()));
                 v.add(PanelCruce.render(c, cruces));
+
+                String interpretacion = cruces.interpretarCruceDinamico(c);
+                Paragraph p = new Paragraph("Interpretación y recomendación: " + interpretacion);
+                p.getStyle().set("font-style", "italic").set("color", "#2c3e50")
+                                .set("background", "#f7f9fb").set("padding", "10px 14px")
+                                .set("border-left", "4px solid #0984e3").set("border-radius", "4px");
+                v.add(p);
                 return v;
         }
 
