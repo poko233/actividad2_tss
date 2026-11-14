@@ -10,7 +10,11 @@ import bo.umss.mercado.nucleo.stats.ResultadoChiCuadrada;
 import bo.umss.mercado.servidor.datos.Empleador;
 import bo.umss.mercado.servidor.datos.RepositorioEmpleadores;
 import bo.umss.mercado.servidor.datos.RepositorioTitulados;
+import bo.umss.mercado.servidor.datos.HistorialExportacion;
+import bo.umss.mercado.servidor.datos.RepositorioHistorialExportacion;
 import bo.umss.mercado.servidor.datos.Titulado;
+import bo.umss.mercado.servidor.servicio.exportacion.ExportadorExcelEmpleadores;
+import bo.umss.mercado.servidor.servicio.exportacion.ExportadorExcelTitulados;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,13 +38,22 @@ public class ServicioExportacion {
     private final RepositorioTitulados repoTitulados;
     private final RepositorioEmpleadores repoEmpleadores;
     private final ServicioAnalisis analisis;
+    private final ExportadorExcelTitulados exportadorExcelTitulados;
+    private final ExportadorExcelEmpleadores exportadorExcelEmpleadores;
+    private final RepositorioHistorialExportacion historial;
 
     public ServicioExportacion(RepositorioTitulados repoTitulados,
             RepositorioEmpleadores repoEmpleadores,
-            ServicioAnalisis analisis) {
+            ServicioAnalisis analisis,
+            ExportadorExcelTitulados exportadorExcelTitulados,
+            ExportadorExcelEmpleadores exportadorExcelEmpleadores,
+            RepositorioHistorialExportacion historial) {
         this.repoTitulados = repoTitulados;
         this.repoEmpleadores = repoEmpleadores;
         this.analisis = analisis;
+        this.exportadorExcelTitulados = exportadorExcelTitulados;
+        this.exportadorExcelEmpleadores = exportadorExcelEmpleadores;
+        this.historial = historial;
     }
 
     // Los 10 items Likert de la encuesta a empleadores.
@@ -282,6 +295,40 @@ public class ServicioExportacion {
             throw new IllegalStateException("No se pudo generar el CSV", errorEscritura);
         }
         return memoria.toString(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    /**
+     * generarExcelTitulados(): libro .xlsx del capítulo 3.
+     * Registra la operación en HistorialExportacion con duración y tamaño.
+     */
+    public byte[] generarExcelTitulados() {
+        long inicio = System.currentTimeMillis();
+        byte[] bytes = exportadorExcelTitulados.exportar();
+        long duracion = System.currentTimeMillis() - inicio;
+        HistorialExportacion registro = new HistorialExportacion();
+        registro.setTipo("EXCEL_TITULADOS");
+        registro.setParametros("filas=" + repoTitulados.count());
+        registro.setTamanoBytes(bytes.length);
+        registro.setDuracionMs(duracion);
+        historial.save(registro);
+        return bytes;
+    }
+
+    /**
+     * generarExcelEmpleadores(): libro .xlsx del capítulo 4.
+     * Registra la operación en HistorialExportacion con duración y tamaño.
+     */
+    public byte[] generarExcelEmpleadores() {
+        long inicio = System.currentTimeMillis();
+        byte[] bytes = exportadorExcelEmpleadores.exportar();
+        long duracion = System.currentTimeMillis() - inicio;
+        HistorialExportacion registro = new HistorialExportacion();
+        registro.setTipo("EXCEL_EMPLEADORES");
+        registro.setParametros("filas=" + repoEmpleadores.count());
+        registro.setTamanoBytes(bytes.length);
+        registro.setDuracionMs(duracion);
+        historial.save(registro);
+        return bytes;
     }
 
     /** redondear(): double -> texto con los decimales pedidos. */

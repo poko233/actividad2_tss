@@ -31,5 +31,8 @@
     <!-- Versiones fijas y verificadas en Maven Central -->
     <version.commons-csv>1.14.1</version.commons-csv>
     <version.commons-math>3.6.1</version.commons-math>
+    <version.poi>5.2.5</version.poi>
+    <version.openpdf>2.0.3</version.openpdf>
+    <version.batik>1.17</version.batik>
   </properties>
 </project>

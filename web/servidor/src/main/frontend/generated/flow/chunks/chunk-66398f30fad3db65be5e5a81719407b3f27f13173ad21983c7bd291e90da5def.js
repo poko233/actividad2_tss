@@ -1,5 +1,6 @@
 import 'Frontend/generated/jar-resources/flow-component-renderer.js';
 import '@vaadin/polymer-legacy-adapter/style-modules.js';
+import '@vaadin/number-field/src/vaadin-number-field.js';
 import '@vaadin/combo-box/src/vaadin-combo-box.js';
 import 'Frontend/generated/jar-resources/comboBoxConnector.js';
 import 'Frontend/generated/jar-resources/vaadin-grid-flow-selection-column.js';
@@ -8,7 +9,11 @@ import '@vaadin/integer-field/src/vaadin-integer-field.js';
 import '@vaadin/form-layout/src/vaadin-form-layout.js';
 import '@vaadin/dialog/src/vaadin-dialog.js';
 import '@vaadin/accordion/src/vaadin-accordion.js';
+import '@vaadin/radio-group/src/vaadin-radio-group.js';
+import '@vaadin/text-area/src/vaadin-text-area.js';
+import '@vaadin/email-field/src/vaadin-email-field.js';
 import '@vaadin/vertical-layout/src/vaadin-vertical-layout.js';
+import '@vaadin/radio-group/src/vaadin-radio-button.js';
 import '@vaadin/app-layout/src/vaadin-app-layout.js';
 import '@vaadin/tooltip/src/vaadin-tooltip.js';
 import '@vaadin/app-layout/src/vaadin-drawer-toggle.js';

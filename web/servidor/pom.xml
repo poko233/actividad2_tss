@@ -17,6 +17,7 @@
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
     <version>3.3.5</version>
+    <relativePath/>
   </parent>
 
   <groupId>bo.umss.mercado</groupId>
@@ -30,6 +31,9 @@
     <vaadin.version>24.6.13</vaadin.version>
     <!-- Dialecto SQLite EXACTO de la línea Hibernate que trae Boot 3.3 -->
     <version.hibernate-dialectos>6.5.3.Final</version.hibernate-dialectos>
+    <version.poi>5.2.5</version.poi>
+    <version.openpdf>2.0.3</version.openpdf>
+    <version.batik>1.17</version.batik>
   </properties>
 
   <dependencies>
@@ -65,6 +69,32 @@
       <groupId>org.hibernate.orm</groupId>
       <artifactId>hibernate-community-dialects</artifactId>
       <version>${version.hibernate-dialectos}</version>
+    </dependency>
+
+    <!-- Exportación profesional: Excel .xlsx multi-hoja -->
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>${version.poi}</version>
+    </dependency>
+
+    <!-- Exportación profesional: PDF ejecutivo -->
+    <dependency>
+      <groupId>com.github.librepdf</groupId>
+      <artifactId>openpdf</artifactId>
+      <version>${version.openpdf}</version>
+    </dependency>
+
+    <!-- Batik: convierte SVG de GraficoCanvas a PNG para el PDF -->
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-transcoder</artifactId>
+      <version>${version.batik}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-codec</artifactId>
+      <version>${version.batik}</version>
     </dependency>
   </dependencies>
 
