@@ -14,6 +14,7 @@ import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.HeaderRow;
+import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
@@ -129,7 +130,7 @@ public class VistaEmpleadores extends VerticalLayout {
 
                 inyectarCss();
 
-                add(new H1("Empleadores encuestados (M = " + repositorio.count() + ")"));
+                add(construirHeader());
 
                 Tabs tabs = new Tabs(
                                 new Tab("Univariado"),
@@ -843,5 +844,52 @@ public class VistaEmpleadores extends VerticalLayout {
                                 GraficoCanvas.barrasApiladas(id, ex, ey, fr, colores,
                                                 "Barras apiladas: " + titulo),
                                 "Frecuencia por categoría");
+        }
+
+        private HorizontalLayout construirHeader() {
+            H1 titulo = new H1("Empleadores encuestados (M = " + repositorio.count() + ")");
+            titulo.getStyle().set("margin", "0");
+
+            HorizontalLayout botones = new HorizontalLayout();
+            botones.setSpacing(true);
+            botones.getStyle().set("gap", "10px").set("flex-wrap", "wrap");
+
+            Anchor btnExcel = new Anchor("/exportar/empleadores.xlsx", "");
+            btnExcel.getElement().setAttribute("download", true);
+            btnExcel.getStyle()
+                    .set("display", "inline-flex").set("align-items", "center").set("gap", "8px")
+                    .set("background", COLOR_VERDE).set("color", "white")
+                    .set("padding", "10px 18px").set("border-radius", "8px")
+                    .set("font-weight", "600").set("font-size", "13px")
+                    .set("text-decoration", "none").set("cursor", "pointer")
+                    .set("box-shadow", "0 3px 10px " + COLOR_VERDE + "40")
+                    .set("transition", "all 0.3s ease");
+            btnExcel.getElement().executeJs(
+                    "this.innerHTML = $0",
+                    "<span style='display:inline-flex;align-items:center;gap:8px;'><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16' fill='#ffffff'><path d='M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z'/></svg><span>Exportar Excel</span></span>");
+
+            Anchor btnPdf = new Anchor("/exportar/empleadores.pdf", "");
+            btnPdf.setTarget("_blank");
+            btnPdf.getStyle()
+                    .set("display", "inline-flex").set("align-items", "center").set("gap", "8px")
+                    .set("background", COLOR_PRINCIPAL).set("color", "white")
+                    .set("padding", "10px 18px").set("border-radius", "8px")
+                    .set("font-weight", "600").set("font-size", "13px")
+                    .set("text-decoration", "none").set("cursor", "pointer")
+                    .set("box-shadow", "0 3px 10px " + COLOR_PRINCIPAL + "40")
+                    .set("transition", "all 0.3s ease");
+            btnPdf.getElement().executeJs(
+                    "this.innerHTML = $0",
+                    "<span style='display:inline-flex;align-items:center;gap:8px;'><svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16' fill='#ffffff'><path d='M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z'/></svg><span>Exportar PDF</span></span>");
+
+            botones.add(btnExcel, btnPdf);
+
+            HorizontalLayout header = new HorizontalLayout(titulo, botones);
+            header.setWidthFull();
+            header.setJustifyContentMode(com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode.BETWEEN);
+            header.setAlignItems(com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment.CENTER);
+            header.getStyle().set("margin-bottom", "16px").set("flex-wrap", "wrap").set("gap", "16px");
+
+            return header;
         }
 }

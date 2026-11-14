@@ -9,22 +9,14 @@ import java.util.List;
 /**
  * GraficoCanvas: graficos estadisticos dibujados con SVG generado en Java.
  *
- * POR QUE SVG Y NO CANVAS:
- * el canvas necesita JavaScript que se ejecute DESPUES de que el navegador
- * ya dibujo el elemento, y ademas necesita un elemento <canvas> real (con
- * un <div> el navegador responde "c.getContext is not a function"). Con SVG
- * el grafico viaja dentro del HTML que el servidor manda, asi que SIEMPRE
- * se ve, sin depender de JavaScript ni de sincronismos.
- *
- * QUE GRAFICOS HACE:
- * - barrasVerticales(): histogramas y frecuencias.
- * - torta(): proporciones (pie chart con segmentos circulares).
- * - mapaCalor(): tablas de contingencia coloreadas por intensidad.
- * - radar(): los 10 items Likert de la encuesta a empleadores.
+ * ARQUITECTURA:
+ * - svgXxx(...) -> devuelve el String SVG (para PDF con Batik).
+ * - Xxx(...) -> devuelve Component (para la UI Vaadin).
+ * Los metodos "Xxx" solo envuelven al svgXxx en un Div. La UI es
+ * identica byte a byte al diseno original.
  */
 public class GraficoCanvas {
 
-        // Paleta simple y legible para todos los graficos.
         public static final String COLOR_PRINCIPAL = "#0b3d62";
         public static final String COLOR_SECUNDARIO = "#0984e3";
         public static final String COLOR_VERDE = "#27ae60";
@@ -32,21 +24,20 @@ public class GraficoCanvas {
         public static final String COLOR_MORADO = "#6c5ce7";
         public static final String COLOR_GRIS = "#b2bec3";
 
-        // Paleta para tortas (se repiten si hay mas categorias que colores).
         public static final String[] COLORES_TORTA = {
                         COLOR_PRINCIPAL, COLOR_SECUNDARIO, COLOR_VERDE,
                         COLOR_NARANJA, COLOR_MORADO, COLOR_GRIS
         };
 
-        // ------------------------------------------------------------------------
-        // barrasVerticales(): barras verticales (histogramas, frecuencias).
-        // id : identificador del grafico (accesibilidad)
-        // datos : valores numericos (uno por categoria)
-        // etiquetas : nombres de las categorias
-        // color : color de las barras
-        // titulo : titulo del grafico
-        // ------------------------------------------------------------------------
+        // ================================================================
+        // BARRAS VERTICALES
+        // ================================================================
         public static Component barrasVerticales(String id, int[] datos, String[] etiquetas,
+                        String color, String titulo) {
+                return contenedorConSvg(svgBarrasVerticales(id, datos, etiquetas, color, titulo), titulo);
+        }
+
+        public static String svgBarrasVerticales(String id, int[] datos, String[] etiquetas,
                         String color, String titulo) {
                 final int ancho = 800;
                 final int alto = 420;
@@ -67,7 +58,6 @@ public class GraficoCanvas {
 
                 StringBuilder svg = iniciarSvg(ancho, alto, titulo);
 
-                // Ejes
                 svg.append(linea(numero(margenIzquierdo), numero(margenSuperior),
                                 numero(margenIzquierdo), numero(margenSuperior + altoUtil), "#cbd5e1"));
                 svg.append(linea(numero(margenIzquierdo), numero(margenSuperior + altoUtil),
@@ -97,17 +87,18 @@ public class GraficoCanvas {
                                         .append(escapar(etiqueta)).append("</text>");
                 }
                 svg.append("</svg>");
-                return contenedorConSvg(svg.toString(), titulo);
+                return svg.toString();
         }
 
-        // ------------------------------------------------------------------------
-        // torta(): grafico circular de proporciones.
-        // datos : valores numericos
-        // etiquetas: nombres de las categorias
-        // colores : color de cada segmento (se repiten si no alcanzan)
-        // titulo : titulo del grafico
-        // ------------------------------------------------------------------------
+        // ================================================================
+        // TORTA
+        // ================================================================
         public static Component torta(String id, int[] datos, String[] etiquetas,
+                        String[] colores, String titulo) {
+                return contenedorConSvg(svgTorta(id, datos, etiquetas, colores, titulo), titulo);
+        }
+
+        public static String svgTorta(String id, int[] datos, String[] etiquetas,
                         String[] colores, String titulo) {
                 final int ancho = 460;
                 final int alto = 320;
@@ -127,8 +118,6 @@ public class GraficoCanvas {
 
                 StringBuilder svg = iniciarSvg(ancho, alto, titulo);
 
-                // Cada segmento es un circulo con dasharray (el truco estandar para
-                // hacer arcos en SVG sin calcular coordenadas de curva).
                 double acumulado = 0;
                 for (int i = 0; i < datos.length; i++) {
                         double largoSegmento = (datos[i] / total) * circunferencia;
@@ -152,7 +141,6 @@ public class GraficoCanvas {
                         acumulado = acumulado + largoSegmento;
                 }
 
-                // Leyenda a la derecha.
                 double y = 45;
                 for (int i = 0; i < datos.length; i++) {
                         String etiqueta = i < etiquetas.length ? etiquetas[i] : ("#" + i);
@@ -165,16 +153,18 @@ public class GraficoCanvas {
                         y = y + 22;
                 }
                 svg.append("</svg>");
-                return contenedorConSvg(svg.toString(), titulo);
+                return svg.toString();
         }
 
-        // ------------------------------------------------------------------------
-        // mapaCalor(): matriz de calor de una tabla de contingencia.
-        // obs : matriz de conteos [filas][columnas]
-        // filas: nombres de las filas
-        // cols : nombres de las columnas
-        // ------------------------------------------------------------------------
+        // ================================================================
+        // MAPA DE CALOR
+        // ================================================================
         public static Component mapaCalor(String id, int[][] obs, String[] filas,
+                        String[] cols, String titulo) {
+                return contenedorConSvg(svgMapaCalor(id, obs, filas, cols, titulo), titulo);
+        }
+
+        public static String svgMapaCalor(String id, int[][] obs, String[] filas,
                         String[] cols, String titulo) {
                 final int ancho = 1000;
                 final int alto = 500;
@@ -256,20 +246,26 @@ public class GraficoCanvas {
                                         .append(escapar(cols[c])).append("</text>");
                 }
                 svg.append("</svg>");
-                return contenedorConSvg(svg.toString(), titulo);
+                return svg.toString();
         }
 
-        // ------------------------------------------------------------------------
-        // radar(): diagrama de radar para puntajes de 1 a 4 (los 10 items Likert
-        // de la encuesta a empleadores, pedido por la HU5).
-        // valores : puntajes (uno por categoria)
-        // etiquetas: nombres de las categorias
-        // ------------------------------------------------------------------------
+        // ================================================================
+        // RADAR (con escala)
+        // ================================================================
         public static Component radar(String id, double[] valores, String[] etiquetas, String titulo) {
-                return radarConEscala(id, valores, etiquetas, 4, titulo);
+                return contenedorConSvg(svgRadar(id, valores, etiquetas, titulo), titulo);
+        }
+
+        public static String svgRadar(String id, double[] valores, String[] etiquetas, String titulo) {
+                return svgRadarConEscala(id, valores, etiquetas, 4, titulo);
         }
 
         public static Component radarConEscala(String id, double[] valores, String[] etiquetas,
+                        int escalaMaxima, String titulo) {
+                return contenedorConSvg(svgRadarConEscala(id, valores, etiquetas, escalaMaxima, titulo), titulo);
+        }
+
+        public static String svgRadarConEscala(String id, double[] valores, String[] etiquetas,
                         int escalaMaxima, String titulo) {
                 final int ancho = 480;
                 final int max = Math.max(2, escalaMaxima);
@@ -284,10 +280,9 @@ public class GraficoCanvas {
                         svg.append(texto("20", "60", "Se necesitan al menos 3 categorias", 13,
                                         "#888888", "start"));
                         svg.append("</svg>");
-                        return contenedorConSvg(svg.toString(), titulo);
+                        return svg.toString();
                 }
 
-                // Anillos (uno por nivel de la escala 1-4).
                 for (int nivel = 1; nivel <= max; nivel++) {
                         StringBuilder puntos = new StringBuilder();
                         for (int i = 0; i < cantidad; i++) {
@@ -302,7 +297,6 @@ public class GraficoCanvas {
                                         .append("' fill='none' stroke='#dfe6ee' stroke-width='1'/>");
                 }
 
-                // Ejes hacia cada categoria.
                 for (int i = 0; i < cantidad; i++) {
                         double angulo = -Math.PI / 2 + i * 2 * Math.PI / cantidad;
                         double x = centroX + radio * Math.cos(angulo);
@@ -310,7 +304,6 @@ public class GraficoCanvas {
                         svg.append(linea(numero(centroX), numero(centroY), numero(x), numero(y), "#e8edf3"));
                 }
 
-                // Poligono con los datos.
                 StringBuilder puntos = new StringBuilder();
                 for (int i = 0; i < cantidad; i++) {
                         double angulo = -Math.PI / 2 + i * 2 * Math.PI / cantidad;
@@ -325,7 +318,6 @@ public class GraficoCanvas {
                                 .append("' fill='rgba(9,132,227,0.25)' stroke='#0b3d62' ")
                                 .append("stroke-width='3'/>");
 
-                // Marcadores y etiquetas de cada eje.
                 for (int i = 0; i < cantidad; i++) {
                         double angulo = -Math.PI / 2 + i * 2 * Math.PI / cantidad;
                         double distancia = radio * (valores[i] / (double) max);
@@ -343,40 +335,29 @@ public class GraficoCanvas {
                                         etiqueta, 11, "#1c2733", "middle"));
                 }
                 svg.append("</svg>");
-                return contenedorConSvg(svg.toString(), titulo);
+                return svg.toString();
         }
 
-        // ------------------------------------------------------------------------
-        // enTarjeta(): envuelve un grafico en una tarjeta blanca con titulo.
-        // ------------------------------------------------------------------------
-        public static Component enTarjeta(Component contenido, String tituloTarjeta) {
-                VerticalLayout tarjeta = new VerticalLayout(contenido);
-                tarjeta.getStyle().set("background", "#ffffff")
-                                .set("border-radius", "10px")
-                                .set("padding", "16px")
-                                .set("box-shadow", "0 1px 4px rgba(0,0,0,.12)")
-                                .set("width", "100%");
-                if (tituloTarjeta != null && !tituloTarjeta.isEmpty()) {
-                        Span titulo = new Span(tituloTarjeta);
-                        titulo.getStyle().set("font-weight", "bold").set("font-size", "15px")
-                                        .set("margin-bottom", "10px").set("display", "block");
-                        tarjeta.addComponentAtIndex(0, titulo);
-                }
-                return tarjeta;
-        }
-
-        // ------------------------------------------------------------------------
-        // Helpers privados (construccion del SVG).
-        // ------------------------------------------------------------------------
-
-        // iniciarSvg(): devuelve el StringBuilder con la cabecera del SVG
-        // (viewBox responsivo + titulo). Se sigue con .append(...) y al final
-        // se pasa a contenedorConSvg(svg.toString(), titulo).
+        // ================================================================
+        // DISPERSION CATEGORIZADA
+        // ================================================================
         public record PuntoDispersion(String categoriaX, String categoriaY,
                         double valorY, int tamano) {
         }
 
         public static Component dispersionCategorizada(
+                        String id,
+                        List<String> xCategorias,
+                        List<String> yCategorias,
+                        List<PuntoDispersion> puntos,
+                        String[] coloresY,
+                        String tituloX, String tituloY, String titulo) {
+                return contenedorConSvg(svgDispersionCategorizada(
+                                id, xCategorias, yCategorias, puntos, coloresY,
+                                tituloX, tituloY, titulo), titulo);
+        }
+
+        public static String svgDispersionCategorizada(
                         String id,
                         List<String> xCategorias,
                         List<String> yCategorias,
@@ -484,10 +465,24 @@ public class GraficoCanvas {
                 }
 
                 svg.append("</svg>");
-                return contenedorConSvg(svg.toString(), titulo);
+                return svg.toString();
         }
 
+        // ================================================================
+        // BARRAS APILADAS
+        // ================================================================
         public static Component barrasApiladas(
+                        String id,
+                        String[] categoriasX,
+                        String[] categoriasY,
+                        int[][] frecuencias,
+                        String[] coloresY,
+                        String titulo) {
+                return contenedorConSvg(svgBarrasApiladas(id, categoriasX, categoriasY,
+                                frecuencias, coloresY, titulo), titulo);
+        }
+
+        public static String svgBarrasApiladas(
                         String id,
                         String[] categoriasX,
                         String[] categoriasY,
@@ -520,13 +515,11 @@ public class GraficoCanvas {
 
                 StringBuilder svg = iniciarSvg(ancho, alto, titulo);
 
-                // Ejes
                 svg.append(linea(numero(margenIzq), numero(margenSup),
                                 numero(margenIzq), numero(margenSup + altoUtil), "#cbd5e1"));
                 svg.append(linea(numero(margenIzq), numero(margenSup + altoUtil),
                                 numero(ancho - margenDer), numero(margenSup + altoUtil), "#cbd5e1"));
 
-                // Gridlines Y + escala
                 for (int k = 0; k <= 4; k++) {
                         double valor = maxTotal * k / 4.0;
                         double y = margenSup + altoUtil - (valor / maxTotal) * altoUtil;
@@ -536,15 +529,12 @@ public class GraficoCanvas {
                                         String.valueOf(Math.round(valor)), 11, "#666", "end"));
                 }
 
-                // Título eje Y
                 svg.append("<text x='22' y='").append(margenSup + altoUtil / 2)
                                 .append("' transform='rotate(-90 22 ").append(margenSup + altoUtil / 2)
                                 .append(")' font-family='Arial' font-size='12' fill='#1c2733' ")
                                 .append("text-anchor='middle'>Frecuencia (n)</text>");
 
-                // Barras apiladas
                 for (int i = 0; i < n; i++) {
-                        // ¿Cuántos segmentos no-cero tiene esta barra?
                         int segmentosNoCero = 0;
                         for (int j = 0; j < categoriasY.length; j++) {
                                 if (frecuencias[i][j] > 0)
@@ -572,17 +562,13 @@ public class GraficoCanvas {
                                                 .append(" / ").append(escapar(categoriasY[j]))
                                                 .append(": ").append(valor).append("</title></rect>");
 
-                                // Solo dibuja la etiqueta del segmento si hay 2+ segmentos.
-                                // Si hay uno solo, el total ya dice el valor.
                                 if (!esSegmentoUnico) {
                                         String valorTexto = String.valueOf(valor);
                                         if (alturaSeg >= 18) {
-                                                // Blanco dentro del segmento, centrado
                                                 svg.append(texto(numero(x + anchoBarra / 2),
                                                                 numero(yActual + alturaSeg / 2 + 4),
                                                                 valorTexto, 12, "#ffffff", "middle"));
                                         } else {
-                                                // Segmento pequeño: número afuera con línea conectora
                                                 double yCentro = yActual + alturaSeg / 2;
                                                 double xLineaIni = x + anchoBarra;
                                                 double xLineaFin = xLineaIni + 6;
@@ -595,7 +581,6 @@ public class GraficoCanvas {
                                 }
                         }
 
-                        // Total encima de la barra
                         if (totalesX[i] > 0) {
                                 double yTotal = margenSup + altoUtil
                                                 - (totalesX[i] / (double) maxTotal) * altoUtil;
@@ -603,7 +588,6 @@ public class GraficoCanvas {
                                                 String.valueOf(totalesX[i]), 12, "#1c2733", "middle"));
                         }
 
-                        // Etiqueta X
                         svg.append("<text transform='translate(").append(numero(x + anchoBarra / 2))
                                         .append(",").append(margenSup + altoUtil + 18)
                                         .append(") rotate(-35)' font-family='Arial' font-size='11' ")
@@ -611,7 +595,6 @@ public class GraficoCanvas {
                                         .append(escapar(categoriasX[i])).append("</text>");
                 }
 
-                // Leyenda Y (derecha)
                 double ly = margenSup + 20;
                 for (int j = 0; j < categoriasY.length; j++) {
                         svg.append("<rect x='").append(ancho - margenDer + 20)
@@ -624,10 +607,24 @@ public class GraficoCanvas {
                 }
 
                 svg.append("</svg>");
-                return contenedorConSvg(svg.toString(), titulo);
+                return svg.toString();
         }
 
+        // ================================================================
+        // BARRAS AGRUPADAS
+        // ================================================================
         public static Component barrasAgrupadas(
+                        String id,
+                        String[] categoriasX,
+                        String[] categoriasY,
+                        int[][] frecuencias,
+                        String[] coloresY,
+                        String titulo) {
+                return contenedorConSvg(svgBarrasAgrupadas(id, categoriasX, categoriasY,
+                                frecuencias, coloresY, titulo), titulo);
+        }
+
+        public static String svgBarrasAgrupadas(
                         String id,
                         String[] categoriasX,
                         String[] categoriasY,
@@ -730,12 +727,35 @@ public class GraficoCanvas {
                 }
 
                 svg.append("</svg>");
-                return contenedorConSvg(svg.toString(), titulo);
+                return svg.toString();
         }
 
+        // ================================================================
+        // enTarjeta (sin cambios — envuelve un Component)
+        // ================================================================
+        public static Component enTarjeta(Component contenido, String tituloTarjeta) {
+                VerticalLayout tarjeta = new VerticalLayout(contenido);
+                tarjeta.getStyle().set("background", "#ffffff")
+                                .set("border-radius", "10px")
+                                .set("padding", "16px")
+                                .set("box-shadow", "0 1px 4px rgba(0,0,0,.12)")
+                                .set("width", "100%");
+                if (tituloTarjeta != null && !tituloTarjeta.isEmpty()) {
+                        Span titulo = new Span(tituloTarjeta);
+                        titulo.getStyle().set("font-weight", "bold").set("font-size", "15px")
+                                        .set("margin-bottom", "10px").set("display", "block");
+                        tarjeta.addComponentAtIndex(0, titulo);
+                }
+                return tarjeta;
+        }
+
+        // ================================================================
+        // HELPERS (sin cambios)
+        // ================================================================
         private static StringBuilder iniciarSvg(int ancho, int alto, String titulo) {
                 return new StringBuilder()
-                                .append("<svg viewBox='0 0 ").append(ancho).append(" ").append(alto)
+                                .append("<svg xmlns='http://www.w3.org/2000/svg' ")
+                                .append("viewBox='0 0 ").append(ancho).append(" ").append(alto)
                                 .append("' preserveAspectRatio='xMidYMid meet' ")
                                 .append("style='width:100%;height:auto;background:#ffffff' ")
                                 .append("role='img' aria-label='").append(escapar(titulo)).append("'>")
@@ -755,17 +775,6 @@ public class GraficoCanvas {
                                 + "' text-anchor='" + ancla + "'>" + escapar(contenido) + "</text>";
         }
 
-        // contenedorConSvg(): inserta el SVG como HTML dentro de un Div.
-        //
-        // POR QUE HTML INLINE Y NO <img> CON DATA URI:
-        // el Data URI travela en el atributo src de un <img>. En produccion
-        // (Render) esa imagen llega rota y el navegador muestra el icono de
-        // "imagen no disponible" con el texto alternativo.
-        // Con innerHTML el SVG es parte del DOM (como cualquier texto), asi
-        // que el navegador lo dibuja siempre. Ademas los <title> internos
-        // siguen funcionando como tooltips al pasar el mouse.
-        // El executeJs se ejecuta cuando el Div ya esta en el navegador, y
-        // "this" es el propio Div, asi que no hay problemas de sincronismo.
         private static Component contenedorConSvg(String svg, String textoAlternativo) {
                 Div contenedor = new Div();
                 contenedor.setId("grafico-" + textoAlternativo.hashCode());
@@ -777,13 +786,10 @@ public class GraficoCanvas {
                 return contenedor;
         }
 
-        // numero(): double -> texto con maximo 2 decimales (sin String.format,
-        // para no volver a tropezar con el simbolo %).
         private static String numero(double valor) {
                 return String.valueOf(Math.round(valor * 100.0) / 100.0);
         }
 
-        // escapar(): texto -> texto seguro dentro de XML/SVG.
         private static String escapar(String texto) {
                 if (texto == null) {
                         return "";

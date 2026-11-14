@@ -18,7 +18,14 @@ public final class ConversorSvg {
             return null;
         }
         try {
-            String svgAjustado = svg.replace(
+            String svgAjustado = svg;
+
+            if (!svgAjustado.contains("xmlns=")) {
+                svgAjustado = svgAjustado.replaceFirst("<svg ",
+                        "<svg xmlns='http://www.w3.org/2000/svg' ");
+            }
+
+            svgAjustado = svgAjustado.replace(
                     "style='width:100%;height:auto;background:#ffffff'",
                     "width='" + ancho + "' height='" + alto
                             + "' style='background:#ffffff'");
@@ -34,6 +41,9 @@ public final class ConversorSvg {
             transcoder.transcode(input, output);
             return salida.toByteArray();
         } catch (Exception error) {
+            System.err.println("[ConversorSvg] Fallo al convertir SVG: "
+                    + error.getClass().getSimpleName() + ": " + error.getMessage());
+            error.printStackTrace();
             throw new IllegalStateException(
                     "No se pudo convertir SVG a PNG: " + error.getMessage(), error);
         }
