@@ -31,9 +31,14 @@
     <vaadin.version>24.6.13</vaadin.version>
     <!-- Dialecto SQLite EXACTO de la línea Hibernate que trae Boot 3.3 -->
     <version.hibernate-dialectos>6.5.3.Final</version.hibernate-dialectos>
+    
+    <!-- Exportación profesional -->
     <version.poi>5.2.5</version.poi>
     <version.openpdf>2.0.3</version.openpdf>
     <version.batik>1.17</version.batik>
+    
+    <!-- SOLUCIÓN AL ERROR DE RENDER: Forzar versión de commons-io -->
+    <version.commons-io>2.20.0</version.commons-io>
   </properties>
 
   <dependencies>
@@ -69,6 +74,13 @@
       <groupId>org.hibernate.orm</groupId>
       <artifactId>hibernate-community-dialects</artifactId>
       <version>${version.hibernate-dialectos}</version>
+    </dependency>
+
+    <!-- SOLUCIÓN AL ERROR DE RENDER: Fuerza commons-io 2.20.0 para commons-csv 1.14.1 -->
+    <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
+      <version>${version.commons-io}</version>
     </dependency>
 
     <!-- Exportación profesional: Excel .xlsx multi-hoja -->
