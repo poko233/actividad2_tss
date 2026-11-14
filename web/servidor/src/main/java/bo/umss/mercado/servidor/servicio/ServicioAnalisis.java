@@ -2,7 +2,7 @@ package bo.umss.mercado.servidor.servicio;
 
 import bo.umss.mercado.nucleo.likert.EscalaLikert;
 import bo.umss.mercado.nucleo.limpieza.LimpiezaDatos;
-import bo.umss.mercado.nucleo.stats.CronbachAlpha;
+
 import bo.umss.mercado.nucleo.stats.Frecuencias;
 import bo.umss.mercado.nucleo.stats.IntervalosConfianza;
 import bo.umss.mercado.nucleo.stats.Numeros;
@@ -326,8 +326,7 @@ public class ServicioAnalisis {
     public record ResumenItem(String columna, String etiqueta, int n,
             double media, double desviacion, double pctAcuerdo) {}
 
-    public record ResumenDimension(String nombre, List<String> items,
-            double alpha, int n, String interpretacion) {}
+
 
     // Resumen de UN ítem Likert (media, desv, % de acuerdo).
     public ResumenItem resumenItem(String columna) {
@@ -354,31 +353,7 @@ public class ServicioAnalisis {
         return out;
     }
 
-    // Ficha de una dimensión con su alfa + n de casos completos.
-    public ResumenDimension fichaDimension(String nombre, List<String> items) {
-        List<List<Double>> completas = new ArrayList<>();
-        for (Map<String, String> f : mapasEmpleadores()) {
-            List<Double> fila = new ArrayList<>();
-            boolean ok = true;
-            for (String c : items) {
-                double v = EscalaLikert.traducir(f.getOrDefault(c, ""), c);
-                if (Double.isNaN(v)) { ok = false; break; }
-                fila.add(v);
-            }
-            if (ok) completas.add(fila);
-        }
-        double alpha = CronbachAlpha.calcular(completas, items.size());
-        return new ResumenDimension(nombre, items, alpha, completas.size(),
-                CronbachAlpha.descripcion(alpha));
-    }
 
-    public ResumenDimension fichaDimensionA() {
-        return fichaDimension("A. Calidad e Imagen", DIM_A_ITEMS);
-    }
-
-    public ResumenDimension fichaDimensionB() {
-        return fichaDimension("B. Vinculación y Retroalimentación", DIM_B_ITEMS);
-    }
 
     public ResumenItem fichaItem4() {
         return resumenItem(ITEM_INDEPENDIENTE);

@@ -474,41 +474,44 @@ public class VistaEmpleadores extends VerticalLayout {
                 VerticalLayout v = new VerticalLayout();
                 v.setPadding(false);
                 v.add(new H3("Evaluación Institucional (Matriz Likert)"));
-                Paragraph nota = new Paragraph("18 ítems en escala 1-3. 'No sabe' y vacío se excluyen.");
+                Paragraph nota = new Paragraph(
+                        "18 ítems en escala 1-3 (1 = Totalmente en desacuerdo, "
+                      + "2 = Parcialmente de acuerdo, 3 = Totalmente de acuerdo). "
+                      + "'No sabe' y vacío se excluyen.");
                 nota.getStyle().set("font-style", "italic").set("font-size", "12px").set("color", "#666");
                 v.add(nota);
 
-                ServicioAnalisis.ResumenDimension dimA = analisis.fichaDimensionA();
-                ServicioAnalisis.ResumenDimension dimB = analisis.fichaDimensionB();
                 ServicioAnalisis.ResumenItem item4 = analisis.fichaItem4();
 
-                double mediaA = analisis.mediasPorDimension("A").stream().mapToDouble(d -> d).average()
-                                .orElse(Double.NaN);
-                double mediaB = analisis.mediasPorDimension("B").stream().mapToDouble(d -> d).average()
-                                .orElse(Double.NaN);
+                double mediaA = analisis.mediasPorDimension("A").stream()
+                        .mapToDouble(d -> d).average().orElse(Double.NaN);
+                double mediaB = analisis.mediasPorDimension("B").stream()
+                        .mapToDouble(d -> d).average().orElse(Double.NaN);
                 double media4 = item4.media();
 
+                int nA = analisis.mediasPorDimension("A").size();
+                int nB = analisis.mediasPorDimension("B").size();
+
                 HorizontalLayout kpis = Componentes.filaKpis(
-                                Componentes.tarjetaKpi("Dimensión A (Calidad e Imagen)",
-                                                String.format(Locale.US, "%.2f/3", mediaA),
-                                                "α=" + String.format(Locale.US, "%.2f", dimA.alpha()) + " · n="
-                                                                + dimA.n()),
-                                Componentes.tarjetaKpi("Dimensión B (Vinculación y Retroalimentación)",
-                                                String.format(Locale.US, "%.2f/3", mediaB),
-                                                "α=" + String.format(Locale.US, "%.2f", dimB.alpha()) + " · n="
-                                                                + dimB.n()),
-                                Componentes.tarjetaKpi("Ítem 4 (Conoce perfil)",
-                                                String.format(Locale.US, "%.2f/3", media4),
-                                                "Reporte individual"));
+                        Componentes.tarjetaKpi("Dimensión A — Calidad e Imagen",
+                                String.format(Locale.US, "%.2f/3", mediaA),
+                                "6 ítems · n=" + nA),
+                        Componentes.tarjetaKpi("Dimensión B — Vinculación y Retroalimentación",
+                                String.format(Locale.US, "%.2f/3", mediaB),
+                                "11 ítems · n=" + nB),
+                        Componentes.tarjetaKpi("Ítem 4 — Conoce el perfil de egreso",
+                                String.format(Locale.US, "%.2f/3", media4),
+                                "Reporte individual · n=" + item4.n()));
                 v.add(kpis);
 
                 v.add(GraficoCanvas.enTarjeta(
-                                GraficoCanvas.radarConEscala("radarEmp",
-                                                new double[] { mediaA, mediaB, media4 },
-                                                new String[] { "Dim A", "Dim B", "Ítem 4" },
-                                                3, "Radar institucional (escala 1-3)"),
-                                "Gráfico de Radar: 2 dimensiones + ítem 4"));
+                        GraficoCanvas.radarConEscala("radarEmp",
+                                new double[] { mediaA, mediaB, media4 },
+                                new String[] { "Dimensión A", "Dimensión B", "Ítem 4" },
+                                3, "Radar descriptivo: medias de las dimensiones (escala 1-3)"),
+                        "Gráfico de Radar: 2 dimensiones + ítem 4"));
 
+                v.add(new H4("Análisis por ítem (18 ítems)"));
                 Grid<String[]> g = new Grid<>();
                 g.addColumn(r -> r[0]).setHeader("Ítem").setAutoWidth(true);
                 g.addColumn(r -> r[1]).setHeader("n").setAutoWidth(true);
@@ -528,18 +531,21 @@ public class VistaEmpleadores extends VerticalLayout {
                 g.setItems(filas);
                 g.setAllRowsVisible(true);
                 g.setWidthFull();
-                v.add(new H4("Los 18 ítems individuales"));
                 v.add(g);
 
-                v.add(new H4("Confiabilidad (Alfa de Cronbach)"));
-                v.add(new Paragraph("Dimensión A (Calidad e Imagen): ítems 1, 2, 5, 6, 8, 9 → α = "
-                                + String.format(Locale.US, "%.2f", dimA.alpha())
-                                + " (" + dimA.interpretacion() + "), n = " + dimA.n()));
-                v.add(new Paragraph("Dimensión B (Vinculación y Retroalimentación): ítems 3, 7, 10-18 → α = "
-                                + String.format(Locale.US, "%.2f", dimB.alpha())
-                                + " (" + dimB.interpretacion() + "), n = " + dimB.n()));
-                v.add(new Paragraph("Ítem 4 (Conoce el perfil de egreso): reporte individual, media = "
-                                + String.format(Locale.US, "%.2f", media4) + "/3, n = " + item4.n()));
+                v.add(new H4("Agrupación de dimensiones"));
+                v.add(new Paragraph(
+                        "Dimensión A — Calidad e Imagen: ítems 1, 2, 5, 6, 8, 9. "
+                      + "Media de la dimensión: " + String.format(Locale.US, "%.2f", mediaA)
+                      + "/3 (n = " + nA + ")."));
+                v.add(new Paragraph(
+                        "Dimensión B — Vinculación y Retroalimentación: ítems 3, 7, 10, 11, 12, 13, "
+                      + "14, 15, 16, 17, 18. Media de la dimensión: "
+                      + String.format(Locale.US, "%.2f", mediaB) + "/3 (n = " + nB + ")."));
+                v.add(new Paragraph(
+                        "Ítem 4 — Conoce el perfil de egreso: se reporta por separado. Media: "
+                      + String.format(Locale.US, "%.2f", media4) + "/3 (n = " + item4.n() + ")."));
+
                 return v;
         }
 
