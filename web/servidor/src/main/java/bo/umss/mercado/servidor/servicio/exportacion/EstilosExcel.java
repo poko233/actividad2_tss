@@ -79,12 +79,6 @@ public final class EstilosExcel {
         return s;
     }
 
-    public static CellStyle celdaWrap(Workbook wb) {
-        CellStyle s = celdaTexto(wb);
-        s.setWrapText(true);
-        return s;
-    }
-
     public static CellStyle celdaNumero(Workbook wb, String formato) {
         CellStyle s = celdaTexto(wb);
         s.setDataFormat(wb.createDataFormat().getFormat(formato));

@@ -167,15 +167,6 @@ public final class EstilosPdf {
         return c;
     }
 
-    /** Celda con fondo suave y texto centrado. */
-    public static PdfPCell celdaFondo(Color fondo, String texto, Font fuente) {
-        PdfPCell c = new PdfPCell(new Phrase(texto == null ? "" : texto, fuente));
-        c.setBackgroundColor(fondo);
-        c.setPadding(5);
-        c.setBorderColor(fondo);
-        return c;
-    }
-
     /** "n/d" si el double es NaN, o el valor redondeado. */
     public static String fmt(double valor, int decimales) {
         if (Double.isNaN(valor)) {

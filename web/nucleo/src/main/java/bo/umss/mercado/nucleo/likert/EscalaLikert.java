@@ -25,32 +25,48 @@ public class EscalaLikert {
     // Traduccion ESCALA 4 (titulados).
     public static double traducir(String etiqueta) {
         String clave = LimpiezaDatos.normalizar(etiqueta);
-        if (clave.contains("NO_SABE")) return Double.NaN;
+        if (clave.contains("NO_SABE"))
+            return Double.NaN;
         if (clave.contains("TOTALMENTE_EN_DESACUERDO")
-                || clave.contains("TOTALMENTE_DESACUERDO")) return 1;
-        if (clave.equals("DESACUERDO") || clave.contains("PARCIALMENTE_DESACUERDO")) return 2;
-        if (clave.equals("ACUERDO") || clave.contains("PARCIALMENTE_ACUERDO")) return 3;
-        if (clave.contains("TOTALMENTE_ACUERDO")) return 4;
-        if (clave.contains("NO_IMPORTANTE")) return 1;
-        if (clave.contains("POCO_IMPORTANTE")) return 2;
-        if (clave.contains("IMPORTANTE") && !clave.contains("MUY")) return 3;
-        if (clave.contains("MUY_IMPORTANTE")) return 4;
-        if (clave.contains("INSATISFECHO") && !clave.contains("ALGO")) return 1;
-        if (clave.contains("ALGO_SATISFECHO")) return 2;
-        if (clave.equals("SATISFECHO")) return 3;
+                || clave.contains("TOTALMENTE_DESACUERDO"))
+            return 1;
+        if (clave.equals("DESACUERDO") || clave.contains("PARCIALMENTE_DESACUERDO"))
+            return 2;
+        if (clave.equals("ACUERDO") || clave.contains("PARCIALMENTE_ACUERDO"))
+            return 3;
+        if (clave.contains("TOTALMENTE_ACUERDO"))
+            return 4;
+        if (clave.contains("NO_IMPORTANTE"))
+            return 1;
+        if (clave.contains("POCO_IMPORTANTE"))
+            return 2;
+        if (clave.contains("IMPORTANTE") && !clave.contains("MUY"))
+            return 3;
+        if (clave.contains("MUY_IMPORTANTE"))
+            return 4;
+        if (clave.contains("INSATISFECHO") && !clave.contains("ALGO"))
+            return 1;
+        if (clave.contains("ALGO_SATISFECHO"))
+            return 2;
+        if (clave.equals("SATISFECHO"))
+            return 3;
         return Double.NaN;
     }
 
     // Traduccion ESCALA 3 (empleadores). "No sabe" -> NaN.
     public static double traducir3(String etiqueta) {
         String clave = LimpiezaDatos.normalizar(etiqueta);
-        if (clave.isEmpty() || clave.contains("NO_SABE")) return Double.NaN;
+        if (clave.isEmpty() || clave.contains("NO_SABE"))
+            return Double.NaN;
         if (clave.contains("TOTALMENTE_DESACUERDO")
-                || clave.contains("TOTALMENTE_EN_DESACUERDO")) return 1;
+                || clave.contains("TOTALMENTE_EN_DESACUERDO"))
+            return 1;
         if (clave.contains("PARCIALMENTE_ACUERDO")
-                || clave.contains("PARCIALMENTE_DE_ACUERDO")) return 2;
+                || clave.contains("PARCIALMENTE_DE_ACUERDO"))
+            return 2;
         if (clave.contains("TOTALMENTE_ACUERDO")
-                || clave.contains("TOTALMENTE_DE_ACUERDO")) return 3;
+                || clave.contains("TOTALMENTE_DE_ACUERDO"))
+            return 3;
         return Double.NaN;
     }
 
@@ -60,49 +76,46 @@ public class EscalaLikert {
     }
 
     public static int escalaMaximaDe(String columna) {
-        if (COLUMNAS_3P.contains(columna)) return 3;
-        if (columna.equals("satisfaccion_negocio")) return 3;
+        if (COLUMNAS_3P.contains(columna))
+            return 3;
+        if (columna.equals("satisfaccion_negocio"))
+            return 3;
         return 4;
     }
 
-    public static String etiquetaDeMedia(double media, int maximo) {
-        if (Double.isNaN(media)) return "sin dato";
-        if (maximo == 3) {
-            if (media < 1.5) return "rechazo (zona del 1)";
-            if (media < 2.5) return "parcial (zona del 2)";
-            return "acuerdo total (zona del 3)";
-        }
-        if (media < 1.5) return "rechazo fuerte (zona del 1)";
-        if (media < 2.5) return "desacuerdo (zona del 2)";
-        if (media < 3.0) return "tibio, entre desacuerdo y acuerdo";
-        if (media < 3.5) return "de acuerdo (zona del 3)";
-        return "acuerdo total (zona del 4)";
-    }
-
     public static String etiquetaDeConsenso(double sd) {
-        if (Double.isNaN(sd)) return "sin dato";
-        if (sd < 0.4) return "consenso alto";
-        if (sd < 0.8) return "consenso moderado";
+        if (Double.isNaN(sd))
+            return "sin dato";
+        if (sd < 0.4)
+            return "consenso alto";
+        if (sd < 0.8)
+            return "consenso moderado";
         return "opiniones divididas";
     }
 
     public static String etiquetaDePrecision(double li, double ls, boolean esLikert) {
-        if (Double.isNaN(li) || Double.isNaN(ls)) return "sin dato";
+        if (Double.isNaN(li) || Double.isNaN(ls))
+            return "sin dato";
         double ancho = ls - li;
         if (esLikert) {
-            if (ancho < 0.4) return "estimacion muy precisa";
-            if (ancho < 0.8) return "estimacion buena";
-            if (ancho < 1.5) return "estimacion regular";
+            if (ancho < 0.4)
+                return "estimacion muy precisa";
+            if (ancho < 0.8)
+                return "estimacion buena";
+            if (ancho < 1.5)
+                return "estimacion regular";
             return "no concluyente";
         }
-        if (ancho < 1.0) return "estimacion muy precisa";
-        if (ancho < 4.0) return "estimacion buena";
-        if (ancho < 8.0) return "estimacion regular";
+        if (ancho < 1.0)
+            return "estimacion muy precisa";
+        if (ancho < 4.0)
+            return "estimacion buena";
+        if (ancho < 8.0)
+            return "estimacion regular";
         return "no concluyente";
     }
 
-    public static final String GUIA_LIKERT =
-            "Titulados (escala 4): 1 = Totalmente desacuerdo, 2 = Desacuerdo, "
+    public static final String GUIA_LIKERT = "Titulados (escala 4): 1 = Totalmente desacuerdo, 2 = Desacuerdo, "
             + "3 = De acuerdo, 4 = Totalmente de acuerdo.\n"
             + "Empleadores (escala 3): 1 = Totalmente desacuerdo, "
             + "2 = Parcialmente de acuerdo, 3 = Totalmente de acuerdo. "

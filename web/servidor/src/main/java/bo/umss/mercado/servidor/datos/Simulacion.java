@@ -46,16 +46,8 @@ public class Simulacion {
         this.escenario = v;
     }
 
-    public String getArea() {
-        return area;
-    }
-
     public void setArea(String v) {
         this.area = v;
-    }
-
-    public double getProporcionEmpirica() {
-        return proporcionEmpirica;
     }
 
     public void setProporcionEmpirica(double v) {
@@ -70,24 +62,12 @@ public class Simulacion {
         this.demandaMedia = v;
     }
 
-    public double getLimiteInferior() {
-        return limiteInferior;
-    }
-
     public void setLimiteInferior(double v) {
         this.limiteInferior = v;
     }
 
-    public double getLimiteSuperior() {
-        return limiteSuperior;
-    }
-
     public void setLimiteSuperior(double v) {
         this.limiteSuperior = v;
-    }
-
-    public int getRepeticiones() {
-        return repeticiones;
     }
 
     public void setRepeticiones(int v) {
@@ -102,25 +82,11 @@ public class Simulacion {
         this.semilla = v;
     }
 
-    public double getProbInteresados() {
-        return probInteresados;
-    }
-
     public void setProbInteresados(double v) {
         this.probInteresados = v;
     }
 
-    public double getProbResto() {
-        return probResto;
-    }
-
     public void setProbResto(double v) {
         this.probResto = v;
-    }
-
-    public String fraseSimple() {
-        return "Si abres este programa, espera unos " + Math.round(demandaMedia)
-                + " inscritos (entre " + Math.round(limiteInferior)
-                + " y " + Math.round(limiteSuperior) + ").";
     }
 }

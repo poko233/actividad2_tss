@@ -1,6 +1,5 @@
 package bo.umss.mercado.servidor.vista;
 
-import bo.umss.mercado.servidor.servicio.ServicioCarga;
 import bo.umss.mercado.servidor.servicio.ServicioImportacionCruda;
 import bo.umss.mercado.servidor.servicio.ServicioImportacionCruda.Accion;
 import bo.umss.mercado.servidor.servicio.ServicioImportacionCruda.Resultado;
@@ -49,8 +48,7 @@ public class VistaImportar extends VerticalLayout {
 
         private final ServicioImportacionCruda importacionCruda;
 
-        public VistaImportar(ServicioCarga carga,
-                        ServicioImportacionCruda importacionCruda) {
+        public VistaImportar(ServicioImportacionCruda importacionCruda) {
                 this.importacionCruda = importacionCruda;
 
                 inyectarCss();
