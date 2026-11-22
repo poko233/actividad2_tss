@@ -34,5 +34,8 @@
     <version.poi>5.2.5</version.poi>
     <version.openpdf>2.0.3</version.openpdf>
     <version.batik>1.17</version.batik>
+    <!-- Pruebas y cobertura de código -->
+    <version.junit>5.10.3</version.junit>
+    <version.jacoco>0.8.12</version.jacoco>
   </properties>
 </project>

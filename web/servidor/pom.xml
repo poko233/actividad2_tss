@@ -39,6 +39,9 @@
     
     <!-- SOLUCIÓN AL ERROR DE RENDER: Forzar versión de commons-io -->
     <version.commons-io>2.20.0</version.commons-io>
+
+    <!-- Cobertura de código -->
+    <version.jacoco>0.8.12</version.jacoco>
   </properties>
 
   <dependencies>
@@ -108,10 +111,43 @@
       <artifactId>batik-codec</artifactId>
       <version>${version.batik}</version>
     </dependency>
+
+    <!-- JUnit 5 y utilidades de pruebas (Mockito, AssertJ) -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
     <plugins>
+      <!-- Cobertura de código con JaCoCo -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${version.jacoco}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>test</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
       <!-- Empaqueta todo (servidor + web + base de datos) en un .jar -->
       <plugin>
         <groupId>org.springframework.boot</groupId>
